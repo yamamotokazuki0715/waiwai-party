@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>ワイワイパーティー</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{--bg:#1d1b2e;--panel:#2a2744;--panel2:#363257;--acc:#ffcf40;--acc2:#ff5c8a;--txt:#fff;--mut:#b8b3d9}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:"Hiragino Maru Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.screen{position:fixed;inset:0;display:none;padding:16px;overflow:auto}
+.screen.on{display:flex}
+.card{margin:auto;background:var(--panel);border-radius:22px;padding:24px;width:min(600px,100%);box-shadow:0 10px 0 #0005}
+h1{font-size:clamp(34px,8vw,58px);margin:0 0 4px;text-align:center;color:var(--acc);text-shadow:3px 3px 0 var(--acc2);letter-spacing:2px}
+h2{margin:0 0 12px;font-size:20px}
+.sub{text-align:center;color:var(--mut);margin:0 0 20px}
+label{display:block;font-size:13px;color:var(--mut);margin:14px 0 6px}
+input{width:100%;font:inherit;font-size:18px;padding:12px 14px;border-radius:12px;border:2px solid #fff2;background:#0003;color:#fff;outline:none;user-select:text;-webkit-user-select:text}
+input:focus{border-color:var(--acc)}
+button{font:inherit;font-weight:bold;font-size:17px;padding:12px 18px;border:none;border-radius:14px;background:var(--acc);color:#2a2000;cursor:pointer;box-shadow:0 5px 0 #b8901c;transition:transform .05s}
+button:active{transform:translateY(3px);box-shadow:0 2px 0 #b8901c}
+button.pink{background:var(--acc2);color:#fff;box-shadow:0 5px 0 #b33360}
+button.ghost{background:var(--panel2);color:#fff;box-shadow:0 5px 0 #0006}
+button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:10px}
+.row>input{flex:1}
+.big{width:100%;margin-top:18px;font-size:20px;padding:16px}
+#status{min-height:1.4em;margin-top:14px;text-align:center;color:var(--acc)}
+.code{font-size:44px;font-weight:bold;letter-spacing:10px;color:var(--acc);text-align:center}
+#players{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+#players li{background:var(--panel2);border-radius:12px;padding:8px 10px;display:flex;align-items:center;gap:8px;font-weight:bold;overflow:hidden;white-space:nowrap}
+.dot{width:18px;height:18px;border-radius:50%;flex:none;border:2px solid #0006}
+.tag{font-size:11px;color:var(--mut);font-weight:normal}
+#modes{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.mode{background:var(--panel2);border-radius:14px;padding:12px;border:3px solid transparent;cursor:pointer}
+.mode.sel{border-color:var(--acc);background:#453f6e}
+.mode.soon{opacity:.45;cursor:default}
+.mode .e{font-size:30px}
+.mode b{display:block;margin:4px 0}
+.mode small{color:var(--mut)}
+.help{font-size:13px;color:var(--mut);line-height:1.7;background:#0002;border-radius:12px;padding:10px 14px;margin-top:14px}
+section{margin-top:22px}
+#game{padding:0;overflow:hidden;flex-direction:column}
+#cv{display:block;width:100%;flex:1;min-height:0;touch-action:none}
+#ctrlBar{flex:none;background:var(--panel);border-top:3px solid #0004;padding:8px 16px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 22px;font-size:14px}
+#ctrlBar .k{display:inline-block;min-width:24px;padding:2px 7px;margin:0 2px;border-radius:6px;background:#fff;color:#222;font-weight:bold;font-size:12px;text-align:center;box-shadow:0 3px 0 #999}
+#ctrlHint{width:100%;text-align:center;color:var(--acc);font-weight:bold;min-height:1.3em}
+#touch{position:fixed;inset:0;display:none;pointer-events:none;z-index:5}
+#touch.on{display:block}
+#joyzone{position:absolute;left:0;top:25%;bottom:0;width:55%;pointer-events:auto;touch-action:none}
+#joybase{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;background:#fff2;border:3px solid #fff5;display:none}
+#knob{position:absolute;left:32px;top:32px;width:50px;height:50px;border-radius:50%;background:#fffb}
+.tbtn{position:absolute;width:86px;height:86px;border-radius:50%;pointer-events:auto;touch-action:none;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:15px;color:#fff;border:3px solid #fff8;text-align:center;line-height:1.1}
+.tbtn.on{filter:brightness(1.5);transform:scale(.94)}
+#btnGrab{right:24px;bottom:110px;background:#448affcc}
+#btnAct{right:120px;bottom:30px;background:#ff5252cc}
+#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000c;padding:8px 16px;border-radius:20px;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.on{opacity:1}
+.stars{font-size:64px;text-align:center;color:var(--acc);letter-spacing:6px}
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;margin:16px 0}
+.stats div{background:var(--panel2);border-radius:12px;padding:10px}
+.stats b{display:block;font-size:28px}
+</style>
+</head>
+<body>
+
+<!-- タイトル -->
+<div class="screen on" id="title">
+  <div class="card">
+    <h1>ワイワイ<br>パーティー</h1>
+    <p class="sub">みんなでスマホ・PCから同時プレイ!</p>
+    <label>なまえ</label>
+    <input id="nameIn" maxlength="10" placeholder="ニックネーム">
+    <button class="big" id="createBtn">🏠 ルームをつくる</button>
+    <label>ルームコードで参加</label>
+    <div class="row">
+      <input id="codeIn" maxlength="4" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:6px">
+      <button class="pink" id="joinBtn">参加</button>
+    </div>
+    <div id="status"></div>
+  </div>
+</div>
+
+<!-- ロビー -->
+<div class="screen" id="lobby">
+  <div class="card">
+    <h2>ルームコード</h2>
+    <div class="code" id="roomCode">----</div>
+    <div class="row" style="margin-top:8px">
+      <input id="shareUrl" readonly>
+      <button class="ghost" id="copyBtn">コピー</button>
+    </div>
+    <section>
+      <h2>プレイヤー <span id="pCount" class="tag"></span></h2>
+      <ul id="players"></ul>
+    </section>
+    <section>
+      <h2>モード</h2>
+      <div id="modes"></div>
+      <div class="help" id="modeHelp"></div>
+    </section>
+    <button class="big" id="startBtn">▶ スタート!</button>
+    <p class="sub" id="waitMsg" style="margin-top:16px">ホストがスタートするのを待っています…</p>
+    <button class="ghost" id="leaveBtn" style="width:100%;margin-top:6px">退出</button>
+  </div>
+</div>
+
+<!-- ゲーム -->
+<div class="screen" id="game">
+  <canvas id="cv"></canvas>
+  <div id="ctrlBar"><span id="ctrlKeys"></span><div id="ctrlHint"></div></div>
+</div>
+
+<!-- リザルト -->
+<div class="screen" id="result">
+  <div class="card">
+    <h1 id="resTitle">しゅうりょう!</h1>
+    <div class="stars" id="resStars"></div>
+    <div class="stats" id="resStats"></div>
+    <button class="big" id="backBtn">ロビーへもどる</button>
+    <p class="sub" id="resWait" style="margin-top:16px">ホストがロビーへ戻るのを待っています…</p>
+  </div>
+</div>
+
+<div id="touch">
+  <div id="joyzone"><div id="joybase"><div id="knob"></div></div></div>
+  <div class="tbtn" id="btnAct">きる<br>ダッシュ</div>
+  <div class="tbtn" id="btnGrab">つかむ</div>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+// =====================================================================
+// 共通
+// =====================================================================
+const PEER_PREFIX = 'waiwai-party-v1-';
+const COLORS = ['#ff5252', '#448aff', '#ffd740', '#69f0ae', '#e040fb', '#ff9100', '#18ffff', '#f5f5f5'];
+const MAX_PLAYERS = 8;
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const r2 = v => Math.round(v * 100) / 100;
+
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+let toastTimer = 0;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2200);
+}
+
+// ---------- 効果音 (WebAudio) ----------
+let AC = null;
+const SFX = {
+  serve: [[660, .1], [880, .1], [1320, .2]], nope: [[180, .09], [150, .12]],
+  pick: [[520, .05, 'triangle']], drop: [[380, .05, 'triangle']], chop: [[1100, .025, 'triangle']],
+  chopdone: [[700, .06], [940, .08]], done: [[740, .08], [990, .14]], burn: [[140, .5, 'sawtooth']],
+  order: [[520, .08, 'triangle'], [780, .12, 'triangle']], expire: [[220, .2, 'sawtooth'], [160, .3, 'sawtooth']],
+  trash: [[260, .1, 'triangle'], [200, .1, 'triangle']], dash: [[300, .06, 'sine'], [500, .06, 'sine']],
+  start: [[523, .15], [659, .15], [784, .15], [1046, .3]], join: [[600, .08], [900, .1]],
+};
+function sfx(kind) {
+  const seq = SFX[kind]; if (!seq) return;
+  try {
+    if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    let t = AC.currentTime;
+    for (const [f, d, type] of seq) {
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = type || 'square'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.07, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + .02); t += d * 0.85;
+    }
+  } catch (e) {}
+}
+
+// ---------- 入力 (キーボード / ゲームパッド / タッチ) ----------
+// g = つかむボタンの押下回数, a = アクションボタンの押下回数, ah = アクション押しっぱなし
+const Input = {
+  keys: new Set(), g: 0, a: 0, touch: { mx: 0, my: 0, a: false }, pad: { g: false, a: false },
+  init() {
+    addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      const k = e.code;
+      if (!e.repeat) {
+        if (k === 'Space' || k === 'KeyJ' || k === 'KeyE') this.g++;
+        if (k === 'ShiftLeft' || k === 'ShiftRight' || k === 'KeyK' || k === 'KeyF') this.a++;
+      }
+      this.keys.add(k);
+      if (app.screen === 'game' && (k === 'Space' || k.startsWith('Arrow'))) e.preventDefault();
+    });
+    addEventListener('keyup', e => this.keys.delete(e.code));
+    addEventListener('blur', () => this.keys.clear());
+  },
+  read() {
+    const K = this.keys; let mx = 0, my = 0;
+    if (K.has('KeyA') || K.has('ArrowLeft')) mx--;
+    if (K.has('KeyD') || K.has('ArrowRight')) mx++;
+    if (K.has('KeyW') || K.has('ArrowUp')) my--;
+    if (K.has('KeyS') || K.has('ArrowDown')) my++;
+    let ah = K.has('ShiftLeft') || K.has('ShiftRight') || K.has('KeyK') || K.has('KeyF') || this.touch.a;
+    const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+    if (pads.length) {
+      const gp = pads[0], b = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
+      const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+      if (Math.hypot(ax, ay) > 0.25) { mx += ax; my += ay; }
+      if (b(14)) mx--; if (b(15)) mx++; if (b(12)) my--; if (b(13)) my++;
+      const pg = b(0), pa = b(2) || b(1);
+      if (pg && !this.pad.g) this.g++;
+      if (pa && !this.pad.a) this.a++;
+      this.pad.g = pg; this.pad.a = pa; ah = ah || pa;
+    }
+    mx += this.touch.mx; my += this.touch.my;
+    const l = Math.hypot(mx, my); if (l > 1) { mx /= l; my /= l; }
+    return { mx, my, g: this.g, a: this.a, ah };
+  },
+};
+
+function initTouch() {
+  const zone = $('#joyzone'), base = $('#joybase'), knob = $('#knob');
+  let pid = null, cx = 0, cy = 0;
+  const upd = e => {
+    let dx = e.clientX - cx, dy = e.clientY - cy; const R = 50, l = Math.hypot(dx, dy);
+    if (l > R) { dx *= R / l; dy *= R / l; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    Input.touch.mx = dx / R; Input.touch.my = dy / R;
+  };
+  zone.addEventListener('pointerdown', e => {
+    pid = e.pointerId; cx = e.clientX; cy = e.clientY;
+    base.style.left = cx + 'px'; base.style.top = cy + 'px'; base.style.display = 'block';
+    zone.setPointerCapture(pid); upd(e);
+  });
+  zone.addEventListener('pointermove', e => { if (e.pointerId === pid) upd(e); });
+  const end = e => {
+    if (e.pointerId !== pid) return;
+    pid = null; Input.touch.mx = Input.touch.my = 0; base.style.display = 'none'; knob.style.transform = '';
+  };
+  zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end);
+  const btn = (el, down, up) => {
+    el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('on'); down(); });
+    const off = () => { el.classList.remove('on'); up && up(); };
+    el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off);
+  };
+  btn($('#btnGrab'), () => Input.g++);
+  btn($('#btnAct'), () => { Input.a++; Input.touch.a = true; }, () => { Input.touch.a = false; });
+}
+const isTouch = matchMedia('(pointer:coarse)').matches;
+
+// =====================================================================
+// 通信 (PeerJS / WebRTC)
+// ホストが権威サーバーを兼ねる。ホストの Peer ID は PEER_PREFIX + ルームコード。
+//   client -> host : hello{name}, in{x,y,fx,fy,g,a,ah}
+//   host -> client : welcome{id,code}, full, lobby{players,mode,phase}, start{mode,init}, st{s}, res{r}
+// =====================================================================
+const Net = {
+  peer: null, conns: new Map(), hostConn: null,
+  send(msg) { if (this.hostConn && this.hostConn.open) this.hostConn.send(msg); },
+  broadcast(msg) { for (const c of this.conns.values()) if (c.open) c.send(msg); },
+  destroy() {
+    try { this.peer && this.peer.destroy(); } catch (e) {}
+    this.peer = null; this.conns.clear(); this.hostConn = null;
+  },
+};
+
+const app = {
+  screen: 'title', isHost: false, myId: null, code: '', name: '',
+  players: [], modeId: 'cooking', phase: 'lobby',
+  init: null, snap: null, hs: null, inputs: {}, result: null, nextId: 1,
+  // クライアント描画用
+  me: null, rp: {}, lastEv: -1, floaters: [],
+};
+
+function randCode() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; let s = '';
+  for (let i = 0; i < 4; i++) s += A[Math.random() * A.length | 0];
+  return s;
+}
+const setStatus = m => { $('#status').textContent = m; };
+function getName() {
+  const n = $('#nameIn').value.trim().slice(0, 10);
+  if (!n) { setStatus('なまえを入れてね'); $('#nameIn').focus(); return null; }
+  store('waiwai-name', n); return n;
+}
+const shareUrl = () => location.href.split('#')[0] + '#' + app.code;
+
+// ---------- ホスト ----------
+function createRoom() {
+  const name = getName(); if (!name) return;
+  app.name = name; setStatus('ルームを作成中…');
+  const code = randCode(); Net.destroy();
+  const peer = new Peer(PEER_PREFIX + code, { debug: 0 }); Net.peer = peer;
+  peer.on('open', () => {
+    Object.assign(app, { isHost: true, code, myId: 0, nextId: 1, phase: 'lobby', hs: null });
+    app.players = [{ id: 0, name, color: COLORS[0] }];
+    history.replaceState(null, '', '#' + code);
+    showLobby();
+  });
+  peer.on('connection', conn => {
+    conn.on('data', d => hostOnData(conn, d));
+    conn.on('close', () => hostDrop(conn));
+    conn.on('error', () => hostDrop(conn));
+  });
+  peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id') return createRoom();
+    if (app.screen === 'title') setStatus('エラー: ' + e.type); else toast('通信エラー: ' + e.type);
+  });
+}
+
+function hostOnData(conn, d) {
+  conn.lastSeen = performance.now();
+  if (d.t === 'hello') {
+    if (app.players.length >= MAX_PLAYERS) { conn.send({ t: 'full' }); setTimeout(() => conn.close(), 300); return; }
+    const id = app.nextId++; conn.pid = id; Net.conns.set(id, conn);
+    const used = new Set(app.players.map(p => p.color));
+    const p = { id, name: String(d.name || 'ゲスト').slice(0, 10), color: COLORS.find(c => !used.has(c)) || COLORS[id % COLORS.length] };
+    app.players.push(p);
+    conn.send({ t: 'welcome', id, code: app.code });
+    if (app.phase !== 'lobby') {
+      const M = MODES[app.modeId];
+      if (app.hs && M.addPlayer) M.addPlayer(app.hs, p);
+      conn.send({ t: 'start', mode: app.modeId, init: app.init });
+      if (app.phase === 'result') conn.send({ t: 'res', r: app.result });
+    }
+    broadcastLobby(); toast(`${p.name} が参加!`); sfx('join');
+  } else if (d.t === 'in') {
+    if (conn.pid != null) app.inputs[conn.pid] = d;
+  }
+}
+
+function hostDrop(conn) {
+  if (conn.pid == null || !Net.conns.has(conn.pid)) return;
+  Net.conns.delete(conn.pid);
+  const p = app.players.find(q => q.id === conn.pid);
+  app.players = app.players.filter(q => q.id !== conn.pid);
+  delete app.inputs[conn.pid];
+  const M = MODES[app.modeId];
+  if (app.hs && M.removePlayer) M.removePlayer(app.hs, conn.pid);
+  broadcastLobby();
+  if (p) toast(`${p.name} が退出しました`);
+}
+
+function broadcastLobby() {
+  Net.broadcast({ t: 'lobby', players: app.players, mode: app.modeId, phase: app.phase });
+  if (app.screen === 'lobby') renderLobby();
+}
+
+function hostStart() {
+  const M = MODES[app.modeId];
+  app.hs = M.create(app.players);
+  app.init = M.initData(app.hs);
+  app.inputs = {}; app.phase = 'game';
+  Net.broadcast({ t: 'start', mode: app.modeId, init: app.init });
+  broadcastLobby();
+  startLocal(app.modeId, app.init);
+}
+
+function hostBackToLobby() {
+  app.phase = 'lobby'; app.hs = null; app.snap = null;
+  broadcastLobby(); showLobby();
+}
+
+// ホストのシミュレーション & 配信 (30Hz)。描画は rAF 側で行う。
+let lastTick = performance.now();
+setInterval(() => {
+  const now = performance.now(), dt = Math.min(0.25, (now - lastTick) / 1000); lastTick = now;
+  if (!app.isHost || app.phase !== 'game' || !app.hs) return;
+  const M = MODES[app.modeId];
+  M.step(app.hs, dt, app.inputs);
+  const s = M.snapshot(app.hs);
+  app.snap = s;
+  Net.broadcast({ t: 'st', s });
+  if (M.isOver(app.hs)) {
+    app.result = M.result(app.hs); app.phase = 'result';
+    Net.broadcast({ t: 'res', r: app.result });
+    broadcastLobby(); showResult(app.result);
+  }
+}, 33);
+
+// ハートビート: タブを閉じた等で close イベントが来ないことがあるため、無通信が続いたら切断扱いにする
+const HEARTBEAT_MS = 2000, TIMEOUT_MS = 10000;
+let lastHostMsg = 0;
+setInterval(() => {
+  const now = performance.now();
+  if (app.isHost && Net.peer) {
+    Net.broadcast({ t: 'ping' });
+    for (const c of [...Net.conns.values()]) if (now - (c.lastSeen || now) > TIMEOUT_MS) { hostDrop(c); try { c.close(); } catch (e) {} }
+  } else if (Net.hostConn && Net.hostConn.open) {
+    Net.send({ t: 'ping' });
+    if (now - lastHostMsg > TIMEOUT_MS) backToTitle('ホストとの接続が切れました');
+  }
+}, HEARTBEAT_MS);
+
+// ---------- クライアント ----------
+function joinRoom() {
+  const name = getName(); if (!name) return;
+  const code = $('#codeIn').value.trim().toUpperCase();
+  if (!/^[A-Z]{4}$/.test(code)) { setStatus('4文字のルームコードを入れてね'); return; }
+  app.name = name; setStatus('接続中…'); Net.destroy();
+  const peer = new Peer({ debug: 0 }); Net.peer = peer;
+  let opened = false;
+  peer.on('open', () => {
+    const conn = peer.connect(PEER_PREFIX + code, { reliable: true }); Net.hostConn = conn;
+    conn.on('open', () => { opened = true; lastHostMsg = performance.now(); conn.send({ t: 'hello', name }); });
+    conn.on('data', clientOnData);
+    conn.on('close', () => { if (opened && Net.peer === peer) backToTitle('ホストとの接続が切れました'); });
+  });
+  peer.on('error', e => {
+    if (e.type === 'peer-unavailable') setStatus('ルームが見つかりません');
+    else if (app.screen !== 'title') backToTitle('通信エラー: ' + e.type);
+    else setStatus('エラー: ' + e.type);
+  });
+  setTimeout(() => {
+    if (!opened && Net.peer === peer && app.screen === 'title')
+      setStatus('接続できませんでした(ネットワーク環境によっては繋がらないことがあります)');
+  }, 12000);
+}
+
+function clientOnData(d) {
+  lastHostMsg = performance.now();
+  switch (d.t) {
+    case 'welcome':
+      Object.assign(app, { isHost: false, myId: d.id, code: d.code, phase: 'lobby' });
+      history.replaceState(null, '', '#' + d.code);
+      showLobby(); break;
+    case 'full': setStatus('満員です'); Net.destroy(); break;
+    case 'lobby':
+      app.players = d.players; app.modeId = d.mode;
+      if (d.phase === 'lobby' && app.phase !== 'lobby') { app.phase = 'lobby'; showLobby(); }
+      else if (app.screen === 'lobby') renderLobby();
+      break;
+    case 'start': app.phase = 'game'; startLocal(d.mode, d.init); break;
+    case 'st': app.snap = d.s; break;
+    case 'res': app.phase = 'result'; showResult(d.r); break;
+  }
+}
+
+function backToTitle(msg) {
+  Net.destroy(); app.phase = 'lobby'; app.hs = null;
+  history.replaceState(null, '', location.pathname + location.search);
+  showScreen('title'); setStatus(msg || '');
+}
+
+// =====================================================================
+// 画面
+// =====================================================================
+function showScreen(id) {
+  app.screen = id;
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id));
+  $('#touch').classList.toggle('on', id === 'game' && isTouch);
+  if (id === 'game') {
+    const m = MODE_LIST.find(x => x.id === app.modeId);
+    $('#ctrlBar').style.display = isTouch ? 'none' : '';
+    $('#ctrlKeys').innerHTML = m && m.keys ? m.keys : '';
+    setHint('');
+    document.activeElement && document.activeElement.blur(); resize();
+  }
+}
+
+function showLobby() { showScreen('lobby'); renderLobby(); }
+
+function renderLobby() {
+  $('#roomCode').textContent = app.code;
+  $('#shareUrl').value = shareUrl();
+  $('#pCount').textContent = `${app.players.length} / ${MAX_PLAYERS}`;
+  $('#players').innerHTML = app.players.map(p =>
+    `<li><span class="dot" style="background:${p.color}"></span>${esc(p.name)}` +
+    `${p.id === 0 ? ' <span class="tag">ホスト</span>' : ''}${p.id === app.myId ? ' <span class="tag">あなた</span>' : ''}</li>`).join('');
+  $('#modes').innerHTML = MODE_LIST.map(m =>
+    `<div class="mode ${m.id === app.modeId ? 'sel' : ''} ${MODES[m.id] ? '' : 'soon'}" data-id="${m.id}">` +
+    `<div class="e">${m.emoji}</div><b>${m.name}</b><small>${MODES[m.id] ? m.desc : '準備中…'}</small></div>`).join('');
+  const cur = MODE_LIST.find(m => m.id === app.modeId);
+  $('#modeHelp').innerHTML = cur ? cur.help : '';
+  $('#startBtn').style.display = app.isHost ? '' : 'none';
+  $('#waitMsg').style.display = app.isHost ? 'none' : '';
+}
+$('#modes').addEventListener('click', e => {
+  const el = e.target.closest('.mode'); if (!el || !app.isHost || !MODES[el.dataset.id]) return;
+  app.modeId = el.dataset.id; broadcastLobby();
+});
+
+function startLocal(modeId, init) {
+  Object.assign(app, { modeId, init, snap: null, me: null, rp: {}, lastEv: -1, floaters: [] });
+  showScreen('game'); sfx('start');
+}
+
+function showResult(r) {
+  showScreen('result');
+  $('#resStars').textContent = '★'.repeat(r.stars) + '☆'.repeat(3 - r.stars);
+  $('#resTitle').textContent = ['ざんねん…', 'まあまあ!', 'すごい!', 'かんぺき!!'][r.stars];
+  $('#resStats').innerHTML = r.stats.map(([k, v]) => `<div>${k}<b>${v}</b></div>`).join('');
+  $('#backBtn').style.display = app.isHost ? '' : 'none';
+  $('#resWait').style.display = app.isHost ? 'none' : '';
+  if (r.stars >= 2) sfx('serve');
+}
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------- キャンバス ----------
+const cv = $('#cv'), ctx = cv.getContext('2d');
+let dpr = 1;
+function resize() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = (cv.clientWidth || innerWidth) * dpr; cv.height = (cv.clientHeight || innerHeight) * dpr;
+}
+let hintText = null;
+function setHint(t) { if (t !== hintText) { hintText = t; $('#ctrlHint').textContent = t; } }
+addEventListener('resize', resize);
+
+const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+function emo(ch, x, y, size) {
+  ctx.font = `${size}px ${EMOJI_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(ch, x, y);
+}
+function rrect(x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function label(txt, x, y, size, color, stroke) {
+  ctx.font = `bold ${size}px "Hiragino Maru Gothic ProN","Yu Gothic UI",sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  if (stroke) { ctx.lineWidth = size * 0.22; ctx.strokeStyle = stroke; ctx.strokeText(txt, x, y); }
+  ctx.fillStyle = color; ctx.fillText(txt, x, y);
+}
+function bar(x, y, w, h, v, color) {
+  ctx.fillStyle = '#000a'; rrect(x, y, w, h, h / 2); ctx.fill();
+  ctx.fillStyle = color; rrect(x, y, Math.max(h, w * clamp(v, 0, 1)), h, h / 2); ctx.fill();
+}
+
+// ---------- メインループ ----------
+let lastFrame = performance.now(), lastSend = 0;
+function frame(t) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (t - lastFrame) / 1000); lastFrame = t;
+  if (app.screen !== 'game') return;
+  const M = MODES[app.modeId];
+  const inp = Input.read();
+  if (app.snap) M.clientFrame(app, inp, dt);
+  const msg = M.inputMsg(app, inp);
+  if (msg) {
+    msg.t = 'in';
+    if (app.isHost) app.inputs[app.myId] = msg;
+    else if (t - lastSend > 33) { lastSend = t; Net.send(msg); }
+  }
+  M.render(app, dt);
+}
+
+// =====================================================================
+// モード定義
+// MODES[id] = { create, addPlayer, removePlayer, initData, step, snapshot, isOver, result,   ← ホスト側
+//               clientFrame, inputMsg, render }                                           ← 全員
+// MODE_LIST に並べたもののうち MODES に実装が無いものは「準備中」表示になる。
+// =====================================================================
+const MODES = {};
+const MODE_LIST = [
+  { id: 'cooking', emoji: '🍳', name: 'ドタバタキッチン', desc: 'みんなで料理して注文をさばけ!',
+    help: '<b>操作</b> 移動: WASD / 矢印 ・ つかむ/おく: Space / J ・ きる/ダッシュ: Shift / K<br>' +
+          'スマホは左側ドラッグで移動、右のボタンで操作。ゲームパッドにも対応。<br>' +
+          '<b>遊び方</b> 食材をまな板🔪で切る → サラダはお皿🍽️にのせる / スープは鍋に同じ食材を3つ入れて煮る → 🛎️に提出!焦がさないように!',
+    keys: '<span>移動 <span class="k">W</span><span class="k">A</span><span class="k">S</span><span class="k">D</span> / <span class="k">←↑↓→</span></span>' +
+          '<span>つかむ・おく <span class="k">Space</span> / <span class="k">J</span></span>' +
+          '<span>きる(長押し)・ダッシュ <span class="k">Shift</span> / <span class="k">K</span></span>' +
+          '<span>🥗 切った野菜をお皿へ ・ 🍲 同じ野菜3つを鍋へ ・ 🛎️ 提出</span>' },
+  { id: 'sumo', emoji: '💥', name: 'おしくらまんじゅう', desc: 'ステージから押し出せ!' },
+  { id: 'bomb', emoji: '💣', name: 'ばくだんリレー', desc: '爆発する前に押しつけろ!' },
+  { id: 'paint', emoji: '🎨', name: 'ぬりぬりバトル', desc: '陣地を自分の色でぬりつぶせ!' },
+];
+
+// =====================================================================
+// モード: ドタバタキッチン (オーバークック風)
+// =====================================================================
+(() => {
+  // # カウンター . 床 T/L/O 食材箱 C まな板 S コンロ P お皿 W 提出口 X ゴミ箱
+  const MAP = [
+    '##T#L#O##C#C###',
+    '#.............S',
+    '#......#......S',
+    'C......#......#',
+    'P......#......W',
+    '#......#......W',
+    'X......#......#',
+    '#.............#',
+    '###S###C###P#X#',
+  ];
+  const SPAWNS = [[3.5, 3.5], [10.5, 3.5], [3.5, 5.5], [10.5, 5.5], [5.5, 1.5], [9.5, 7.5], [1.5, 7.5], [12.5, 1.5]];
+  const CRATE = { T: 'tomato', L: 'lettuce', O: 'onion' };
+  const ING = new Set(['tomato', 'lettuce', 'onion']);
+  const SOUPABLE = new Set(['tomato', 'onion']);
+  const EMO = { tomato: '🍅', lettuce: '🥬', onion: '🧅' };
+  const RECIPES = [
+    { id: 'salad', name: 'ミックスサラダ', need: ['lettuce', 'tomato'], pts: 20, time: 55 },
+    { id: 'tsalad', name: 'トマトサラダ', need: ['tomato'], pts: 10, time: 40 },
+    { id: 'tsoup', name: 'トマトスープ', need: ['tomato_soup'], pts: 30, time: 75 },
+    { id: 'osoup', name: 'オニオンスープ', need: ['onion_soup'], pts: 30, time: 75 },
+  ];
+  const ORDER_POOL = ['salad', 'salad', 'tsalad', 'tsoup', 'osoup'];
+  const ROUND_TIME = 180, CHOP_TIME = 1.4, COOK_TIME = 6, BURN_TIME = 11, MAX_ORDERS = 5;
+  const R = 0.34, SPEED = 4.2, DASH = 10;
+  const recipeKey = arr => [...arr].sort().join('+');
+
+  const tileAt = (map, x, y) => (y < 0 || y >= map.length || x < 0 || x >= map[0].length) ? '#' : map[y][x];
+  const target = p => {
+    let dx = 0, dy = 0;
+    if (Math.abs(p.fx) >= Math.abs(p.fy)) dx = p.fx >= 0 ? 1 : -1; else dy = p.fy >= 0 ? 1 : -1;
+    return [Math.floor(p.x) + dx, Math.floor(p.y) + dy];
+  };
+  function collide(map, p) {
+    const bx = Math.floor(p.x), by = Math.floor(p.y);
+    for (let ty = by - 1; ty <= by + 1; ty++) for (let tx = bx - 1; tx <= bx + 1; tx++) {
+      if (tileAt(map, tx, ty) === '.') continue;
+      const dx = p.x - clamp(p.x, tx, tx + 1), dy = p.y - clamp(p.y, ty, ty + 1), d = Math.hypot(dx, dy);
+      if (d >= R) continue;
+      if (d < 1e-6) { const ex = p.x - (tx + .5), ey = p.y - (ty + .5), el = Math.hypot(ex, ey) || 1; p.x += ex / el * .5; p.y += ey / el * .5; }
+      else { p.x += dx / d * (R - d); p.y += dy / d * (R - d); }
+    }
+  }
+
+  // ---------- ホスト側ロジック ----------
+  function ev(S, k, x, y, txt) {
+    S.ev.push({ id: S.evId++, k, x, y, txt });
+    if (S.ev.length > 24) S.ev.shift();
+  }
+  function newOrder(S, forced) {
+    const id = forced || ORDER_POOL[Math.random() * ORDER_POOL.length | 0];
+    const r = RECIPES.findIndex(x => x.id === id);
+    S.orders.push({ id: S.oid++, r, t: RECIPES[r].time, T: RECIPES[r].time });
+    ev(S, 'order', -1, -1);
+  }
+  function addToPlate(plate, it) {
+    if (!ING.has(it.k) || !it.ch) return false;
+    if (plate.c.length >= 3 || plate.c.includes(it.k) || plate.c.some(x => x.endsWith('_soup'))) return false;
+    plate.c.push(it.k); return true;
+  }
+  const resetPot = pot => { pot.c = []; pot.cook = 0; pot.st = 'empty'; };
+
+  function serve(S, p, tx, ty) {
+    const key = recipeKey(p.held.c);
+    const idx = S.orders.findIndex(o => recipeKey(RECIPES[o.r].need) === key);
+    if (idx < 0) return ev(S, 'nope', tx, ty, '注文にない!');
+    const o = S.orders[idx], pts = RECIPES[o.r].pts + Math.round(8 * o.t / o.T);
+    S.score += pts; S.served++; S.orders.splice(idx, 1); p.held = null;
+    ev(S, 'serve', tx, ty, `+${pts}`);
+  }
+
+  function interact(S, p) {
+    const [tx, ty] = target(p), c = tileAt(S.map, tx, ty), k = tx + ',' + ty, H = p.held;
+    if (c === '.') return;
+    if (CRATE[c]) {
+      if (!H) { p.held = { k: CRATE[c], ch: 0 }; ev(S, 'pick', tx, ty); }
+      else if (H.k === CRATE[c] && !H.ch) { p.held = null; ev(S, 'drop', tx, ty); }
+      return;
+    }
+    if (c === 'P') {
+      if (!H) { p.held = { k: 'plate', c: [] }; ev(S, 'pick', tx, ty); }
+      else if (H.k === 'plate' && !H.c.length) { p.held = null; ev(S, 'drop', tx, ty); }
+      else if (ING.has(H.k)) {
+        // 食材を持ってお皿置き場 → お皿に盛って持つ
+        const plate = { k: 'plate', c: [] };
+        if (addToPlate(plate, H)) { p.held = plate; ev(S, 'drop', tx, ty); }
+        else ev(S, 'nope', tx, ty, '切ってから!');
+      }
+      return;
+    }
+    if (c === 'X') {
+      if (!H) return;
+      if (H.k === 'plate') { if (H.c.length) { H.c = []; ev(S, 'trash', tx, ty); } }
+      else { p.held = null; ev(S, 'trash', tx, ty); }
+      return;
+    }
+    if (c === 'W') {
+      if (H && H.k === 'plate' && H.c.length) serve(S, p, tx, ty);
+      else if (H) ev(S, 'nope', tx, ty, 'お皿にのせてね!');
+      return;
+    }
+    if (c === 'S') {
+      const pot = S.pots[k];
+      if (H && ING.has(H.k)) {
+        if (!H.ch) return ev(S, 'nope', tx, ty, '切ってから!');
+        if (!SOUPABLE.has(H.k)) return ev(S, 'nope', tx, ty, 'レタスは煮れない!');
+        if (pot.st === 'done' || pot.st === 'burnt' || pot.st === 'cooking') return ev(S, 'nope', tx, ty, 'いっぱい!');
+        if (pot.c.length && pot.c[0] !== H.k) return ev(S, 'nope', tx, ty, 'まぜられない!');
+        pot.c.push(H.k); p.held = null;
+        if (pot.c.length >= 3) { pot.st = 'cooking'; pot.cook = 0; } else pot.st = 'filling';
+        return ev(S, 'drop', tx, ty);
+      }
+      if (H && H.k === 'plate') {
+        if (pot.st === 'burnt') return ev(S, 'nope', tx, ty, '手ぶらで焦げを捨てて!');
+        if (pot.st !== 'done') return;
+        if (H.c.length) return ev(S, 'nope', tx, ty, '空のお皿で!');
+        H.c = [pot.c[0] + '_soup']; resetPot(pot);
+        return ev(S, 'pick', tx, ty);
+      }
+      if (!H && pot.st === 'burnt') { resetPot(pot); ev(S, 'trash', tx, ty, '焦げポイッ'); }
+      else if (!H && pot.st === 'filling') {
+        // 煮始める前なら食材を取り出せる
+        p.held = { k: pot.c.pop(), ch: 1 };
+        if (!pot.c.length) pot.st = 'empty';
+        ev(S, 'pick', tx, ty);
+      }
+      return;
+    }
+    // カウンター / まな板: 1マスにアイテム1つ
+    const I = S.items[k];
+    if (!H && I) { p.held = I; delete S.items[k]; ev(S, 'pick', tx, ty); }
+    else if (H && !I) { S.items[k] = H; p.held = null; ev(S, 'drop', tx, ty); }
+    else if (H && I) {
+      if (H.k === 'plate' && addToPlate(H, I)) { delete S.items[k]; ev(S, 'drop', tx, ty); }
+      else if (I.k === 'plate' && addToPlate(I, H)) { p.held = null; ev(S, 'drop', tx, ty); }
+      else if ((H.k === 'plate' && ING.has(I.k) && !I.ch) || (I.k === 'plate' && ING.has(H.k) && !H.ch)) ev(S, 'nope', tx, ty, '切ってから!');
+      else ev(S, 'nope', tx, ty, 'のせられない!');
+    }
+  }
+
+  MODES.cooking = {
+    create(players) {
+      const S = { map: MAP, phase: 'count', count: 3.5, time: ROUND_TIME, score: 0, served: 0, failed: 0,
+        items: {}, pots: {}, orders: [], orderTimer: 6, oid: 1, ev: [], evId: 1, players: [], nStart: players.length };
+      MAP.forEach((row, y) => [...row].forEach((c, x) => { if (c === 'S') S.pots[x + ',' + y] = { c: [], cook: 0, st: 'empty' }; }));
+      players.forEach(p => this.addPlayer(S, p));
+      newOrder(S, 'tsalad');
+      return S;
+    },
+    addPlayer(S, p) {
+      const sp = SPAWNS[S.players.length % SPAWNS.length];
+      S.players.push({ id: p.id, name: p.name, color: p.color, x: sp[0], y: sp[1], fx: 0, fy: 1, held: null, lg: undefined, chop: false });
+    },
+    removePlayer(S, id) { S.players = S.players.filter(p => p.id !== id); },
+    initData(S) { return { map: S.map }; },
+
+    step(S, dt, inputs) {
+      if (S.phase === 'count') { S.count -= dt; if (S.count <= 0) S.phase = 'play'; }
+      const play = S.phase === 'play';
+      for (const p of S.players) {
+        const inp = inputs[p.id]; p.chop = false;
+        if (!inp) continue;
+        p.x = inp.x; p.y = inp.y; p.fx = inp.fx; p.fy = inp.fy;
+        if (p.lg === undefined) p.lg = inp.g;
+        if (inp.g !== p.lg) { p.lg = inp.g; if (play) interact(S, p); }
+        if (play && inp.ah && !p.held) {
+          const [tx, ty] = target(p), it = S.items[tx + ',' + ty];
+          if (tileAt(S.map, tx, ty) === 'C' && it && ING.has(it.k) && !it.ch) {
+            p.chop = true; it.pr = (it.pr || 0) + dt / CHOP_TIME;
+            if (it.pr >= 1) { it.ch = 1; delete it.pr; ev(S, 'chopdone', tx, ty); }
+          }
+        }
+      }
+      if (!play) return;
+      S.time -= dt;
+      for (const k in S.pots) {
+        const pot = S.pots[k], [x, y] = k.split(',').map(Number);
+        if (pot.st === 'cooking') { pot.cook += dt; if (pot.cook >= COOK_TIME) { pot.st = 'done'; ev(S, 'done', x, y, 'できた!'); } }
+        else if (pot.st === 'done') { pot.cook += dt; if (pot.cook >= COOK_TIME + BURN_TIME) { pot.st = 'burnt'; ev(S, 'burn', x, y, '焦げた!!'); } }
+      }
+      for (const o of S.orders) o.t -= dt;
+      const expired = S.orders.filter(o => o.t <= 0);
+      if (expired.length) {
+        S.orders = S.orders.filter(o => o.t > 0);
+        for (const _ of expired) { S.failed++; S.score = Math.max(0, S.score - 10); ev(S, 'expire', 7, 0, '注文キャンセル… -10'); }
+      }
+      S.orderTimer -= dt;
+      if (!S.orders.length) S.orderTimer = Math.min(S.orderTimer, 1.5);
+      if (S.orderTimer <= 0 && S.orders.length < MAX_ORDERS) {
+        newOrder(S);
+        S.orderTimer = Math.max(8, 19 - 2.5 * S.players.length) + Math.random() * 4 - 2;
+      }
+    },
+    snapshot(S) {
+      return {
+        ph: S.phase, cnt: S.count, tm: S.time, sc: S.score,
+        pl: S.players.map(p => ({ id: p.id, n: p.name, c: p.color, x: r2(p.x), y: r2(p.y), fx: r2(p.fx), fy: r2(p.fy), h: p.held, ch: p.chop ? 1 : 0 })),
+        it: S.items, po: S.pots, or: S.orders.map(o => ({ id: o.id, r: o.r, t: r2(o.t), T: o.T })), ev: S.ev,
+      };
+    },
+    isOver(S) { return S.phase === 'play' && S.time <= 0; },
+    result(S) {
+      const n = clamp(S.nStart, 1, 4), mul = 1 + 0.35 * (n - 1);
+      const th = [40, 100, 170].map(v => Math.round(v * mul));
+      return { stars: th.filter(v => S.score >= v).length,
+        stats: [['スコア', S.score], ['提供', S.served], ['キャンセル', S.failed]] };
+    },
+
+    // ---------- 全員共通: 自キャラの移動はローカルで計算しホストへ送る ----------
+    clientFrame(app, inp, dt) {
+      const s = app.snap, map = app.init.map;
+      const mine = s.pl.find(p => p.id === app.myId);
+      if (!mine) { app.me = null; return; }
+      if (!app.me) app.me = { x: mine.x, y: mine.y, fx: mine.fx, fy: mine.fy, dv: 0, la: inp.a, chopT: 0 };
+      const me = app.me;
+      const ml = Math.hypot(inp.mx, inp.my);
+      if (ml > 0.2) { me.fx = inp.mx / ml; me.fy = inp.my / ml; }
+      if (inp.a !== me.la) {
+        me.la = inp.a;
+        const [tx, ty] = target(me), it = s.it[tx + ',' + ty];
+        const canChop = !mine.h && tileAt(map, tx, ty) === 'C' && it && ING.has(it.k) && !it.ch;
+        if (!canChop) { me.dv = DASH; sfx('dash'); }
+      }
+      const vx = inp.mx * SPEED + me.fx * me.dv, vy = inp.my * SPEED + me.fy * me.dv;
+      me.dv *= Math.exp(-9 * dt); if (me.dv < 0.3) me.dv = 0;
+      const steps = Math.max(1, Math.ceil(Math.hypot(vx, vy) * dt / 0.15));
+      for (let i = 0; i < steps; i++) { me.x += vx * dt / steps; me.y += vy * dt / steps; collide(map, me); }
+
+      const f = 1 - Math.exp(-14 * dt);
+      for (const o of s.pl) {
+        if (o.id === app.myId) continue;
+        const rp = app.rp[o.id] || (app.rp[o.id] = { x: o.x, y: o.y });
+        rp.x += (o.x - rp.x) * f; rp.y += (o.y - rp.y) * f;
+        const dx = me.x - rp.x, dy = me.y - rp.y, d = Math.hypot(dx, dy);
+        if (d < R * 2 && d > 1e-4) { me.x += dx / d * (R * 2 - d); me.y += dy / d * (R * 2 - d); collide(map, me); }
+      }
+
+      if (app.lastEv < 0) app.lastEv = s.ev.length ? s.ev[s.ev.length - 1].id : 0;
+      for (const e of s.ev) if (e.id > app.lastEv) {
+        app.lastEv = e.id; sfx(e.k);
+        if (e.txt) app.floaters.push({ x: e.x + .5, y: e.y + .3, txt: e.txt, k: e.k, t: 1.5 });
+      }
+      me.chopT -= dt;
+      if (s.pl.some(p => p.ch) && me.chopT <= 0) { sfx('chop'); me.chopT = 0.15; }
+      if (!isTouch) setHint(hintFor(s, mine.h, target(me), map));
+    },
+    inputMsg(app, inp) {
+      const me = app.me; if (!me) return null;
+      return { x: r2(me.x), y: r2(me.y), fx: r2(me.fx), fy: r2(me.fy), g: inp.g, a: inp.a, ah: inp.ah };
+    },
+
+    // ---------- 描画 ----------
+    render(app, dt) {
+      const W = cv.width, H = cv.height, s = app.snap;
+      ctx.fillStyle = '#1d1b2e'; ctx.fillRect(0, 0, W, H);
+      if (!s) { label('接続中…', W / 2, H / 2, 30 * dpr, '#fff'); return; }
+      const map = app.init.map, cols = map[0].length, rows = map.length;
+      const hud = Math.min(96 * dpr, H * 0.2);
+      const ts = Math.floor(Math.min(W / cols, (H - hud) / rows));
+      const ox = (W - cols * ts) / 2, oy = hud + (H - hud - rows * ts) / 2;
+      const X = x => ox + x * ts, Y = y => oy + y * ts;
+      const now = performance.now() / 1000;
+
+      // タイル
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+        const c = map[y][x], px = X(x), py = Y(y);
+        if (c === '.') { ctx.fillStyle = (x + y) % 2 ? '#4a4f6e' : '#434763'; ctx.fillRect(px, py, ts, ts); continue; }
+        ctx.fillStyle = '#8a6848'; ctx.fillRect(px, py, ts, ts);
+        ctx.fillStyle = '#d6ae84'; ctx.fillRect(px + 1, py + 1, ts - 2, ts * 0.82);
+        if (CRATE[c]) {
+          ctx.fillStyle = '#a0703c'; rrect(px + ts * .1, py + ts * .1, ts * .8, ts * .66, ts * .08); ctx.fill();
+          emo(EMO[CRATE[c]], px + ts / 2, py + ts * .43, ts * .5);
+        } else if (c === 'C') {
+          ctx.fillStyle = '#f1dcb4'; rrect(px + ts * .12, py + ts * .14, ts * .76, ts * .56, ts * .08); ctx.fill();
+          emo('🔪', px + ts * .8, py + ts * .22, ts * .26);
+        } else if (c === 'S') {
+          ctx.fillStyle = '#3b3b44'; rrect(px + ts * .08, py + ts * .08, ts * .84, ts * .7, ts * .1); ctx.fill();
+          ctx.strokeStyle = '#ff6b3d'; ctx.lineWidth = ts * .05; ctx.beginPath(); ctx.arc(px + ts / 2, py + ts * .43, ts * .28, 0, 7); ctx.stroke();
+        } else if (c === 'P') {
+          for (let i = 0; i < 3; i++) { ctx.fillStyle = i === 2 ? '#fff' : '#ddd'; ctx.beginPath(); ctx.ellipse(px + ts / 2, py + ts * (.55 - i * .08), ts * .32, ts * .14, 0, 0, 7); ctx.fill(); }
+        } else if (c === 'W') {
+          ctx.fillStyle = '#ffcf40'; ctx.fillRect(px + ts * .06, py + ts * .06, ts * .88, ts * .72);
+          ctx.fillStyle = '#e0a800'; for (let i = 0; i < 4; i++) ctx.fillRect(px + ts * .06, py + ts * (.1 + i * .18), ts * .88, ts * .07);
+          emo('🛎️', px + ts / 2, py + ts * .42, ts * .44);
+        } else if (c === 'X') {
+          emo('🗑️', px + ts / 2, py + ts * .42, ts * .55);
+        }
+      }
+
+      // カウンター上のアイテム
+      for (const k in s.it) {
+        const [x, y] = k.split(',').map(Number), it = s.it[k];
+        drawItem(it, X(x) + ts / 2, Y(y) + ts * .42, ts * .7);
+        if (it.pr) bar(X(x) + ts * .12, Y(y) + ts * .74, ts * .76, ts * .12, it.pr, '#69f0ae');
+      }
+      // 鍋
+      for (const k in s.po) {
+        const [x, y] = k.split(',').map(Number), pot = s.po[k], cx = X(x) + ts / 2, cy = Y(y) + ts * .43;
+        ctx.fillStyle = pot.st === 'burnt' ? '#111' : '#9aa0b0';
+        ctx.beginPath(); ctx.arc(cx, cy, ts * .3, 0, 7); ctx.fill();
+        ctx.fillStyle = pot.st === 'burnt' ? '#222' : pot.st === 'done' ? '#e57a3c' : '#5d6272';
+        ctx.beginPath(); ctx.arc(cx, cy, ts * .23, 0, 7); ctx.fill();
+        if (pot.st === 'burnt') emo('🔥', cx, cy - ts * .1, ts * .5);
+        else pot.c.forEach((g, i) => emo(EMO[g], cx + (i - 1) * ts * .15, cy, ts * .2));
+        if (pot.st === 'cooking') bar(X(x) + ts * .12, Y(y) + ts * .8, ts * .76, ts * .12, pot.cook / COOK_TIME, '#ffcf40');
+        if (pot.st === 'done') {
+          const warn = pot.cook > COOK_TIME + BURN_TIME * 0.45;
+          bar(X(x) + ts * .12, Y(y) + ts * .8, ts * .76, ts * .12, 1 - (pot.cook - COOK_TIME) / BURN_TIME, warn ? '#ff5252' : '#69f0ae');
+          if (warn && Math.sin(now * 14) > 0) label('!', cx + ts * .32, Y(y) + ts * .1, ts * .45, '#ff5252', '#000');
+          else if (!warn) emo('✅', cx + ts * .3, Y(y) + ts * .12, ts * .22);
+        }
+      }
+
+      // 自分の向いているマス
+      if (app.me) {
+        const [tx, ty] = target(app.me);
+        if (tileAt(map, tx, ty) !== '.') {
+          ctx.strokeStyle = '#fffb'; ctx.lineWidth = Math.max(2, ts * .05);
+          rrect(X(tx) + 2, Y(ty) + 2, ts - 4, ts - 4, ts * .12); ctx.stroke();
+        }
+      }
+
+      // プレイヤー (y順)
+      const pls = s.pl.map(p => {
+        const pos = p.id === app.myId && app.me ? app.me : (app.rp[p.id] || p);
+        return { p, x: pos.x, y: pos.y, fx: p.id === app.myId && app.me ? app.me.fx : p.fx, fy: p.id === app.myId && app.me ? app.me.fy : p.fy };
+      }).sort((a, b) => a.y - b.y);
+      for (const { p, x, y, fx, fy } of pls) {
+        const cx = X(x), cy = Y(y), r = ts * R;
+        ctx.fillStyle = '#0005'; ctx.beginPath(); ctx.ellipse(cx, cy + r * .8, r * .9, r * .35, 0, 0, 7); ctx.fill();
+        const bob = p.ch ? Math.sin(now * 30) * r * .08 : 0;
+        ctx.fillStyle = p.c; ctx.strokeStyle = '#0008'; ctx.lineWidth = Math.max(1.5, ts * .03);
+        ctx.beginPath(); ctx.arc(cx, cy + bob, r, 0, 7); ctx.fill(); ctx.stroke();
+        // 目
+        ctx.fillStyle = '#222';
+        for (const side of [-1, 1]) {
+          const ex = cx + fx * r * .45 - fy * side * r * .3, ey = cy + bob + fy * r * .35 + fx * side * r * .3 - r * .1;
+          ctx.beginPath(); ctx.arc(ex, ey, r * .11, 0, 7); ctx.fill();
+        }
+        // コック帽
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(cx - r * .5, cy + bob - r * 1.15, r, r * .35);
+        for (const dx of [-.35, 0, .35]) { ctx.beginPath(); ctx.arc(cx + dx * r, cy + bob - r * 1.25, r * .32, 0, 7); ctx.fill(); }
+        if (p.h) drawItem(p.h, cx + fx * r * .9, cy + fy * r * .7 + bob, ts * .52);
+        if (p.ch) emo('🔪', cx + fx * r * 1.3, cy + fy * r - r * .3, ts * .3);
+        label(p.n, cx, cy - r * 1.95, Math.max(11, ts * .24), p.id === app.myId ? '#ffcf40' : '#fff', '#000c');
+      }
+
+      // ふきだし
+      app.floaters = app.floaters.filter(f => (f.t -= dt) > 0);
+      for (const f of app.floaters) {
+        const col = f.k === 'serve' ? '#ffcf40' : (f.k === 'burn' || f.k === 'expire') ? '#ff5252' : f.k === 'done' ? '#69f0ae' : '#fff';
+        label(f.txt, X(f.x), Y(f.y) - (1.5 - f.t) * ts * .6, ts * (f.k === 'serve' ? .5 : .34), col, '#000');
+      }
+
+      // HUD: 注文
+      const cw = Math.min(130 * dpr, (W - 170 * dpr) / MAX_ORDERS - 8 * dpr), ch = hud - 16 * dpr;
+      s.or.forEach((o, i) => {
+        const R0 = RECIPES[o.r], x0 = 8 * dpr + i * (cw + 8 * dpr), y0 = 8 * dpr, v = o.t / o.T;
+        const shake = v < .25 ? Math.sin(now * 25) * 2 * dpr : 0;
+        ctx.fillStyle = '#fff'; rrect(x0 + shake, y0, cw, ch, 10 * dpr); ctx.fill();
+        const icons = R0.need;
+        icons.forEach((g, j) => {
+          const ix = x0 + shake + cw * (j + 1) / (icons.length + 1), iy = y0 + ch * .36, sz = Math.min(cw / (icons.length + .6), ch * .42);
+          if (g.endsWith('_soup')) { emo('🍲', ix, iy, sz); emo(EMO[g.replace('_soup', '')], ix + sz * .38, iy - sz * .3, sz * .45); }
+          else emo(EMO[g], ix, iy, sz);
+        });
+        label(R0.name, x0 + shake + cw / 2, y0 + ch * .72, Math.min(12 * dpr, cw / 7.5), '#333');
+        bar(x0 + shake + cw * .08, y0 + ch * .86, cw * .84, ch * .08, v, v > .5 ? '#4caf50' : v > .25 ? '#ffb300' : '#f44336');
+      });
+      // HUD: スコア・時間
+      const tm = Math.max(0, Math.ceil(s.tm)), mm = Math.floor(tm / 60), ss = String(tm % 60).padStart(2, '0');
+      label(`⏱ ${mm}:${ss}`, W - 75 * dpr, hud * .32, 26 * dpr, tm <= 30 && Math.sin(now * 8) > 0 ? '#ff5252' : '#fff', '#000');
+      label(`💰 ${s.sc}`, W - 75 * dpr, hud * .72, 24 * dpr, '#ffcf40', '#000');
+
+      if (H > W * 1.3) label('📱 横向きにすると大きく見えます', W / 2, oy + rows * ts + 30 * dpr, 14 * dpr, '#b8b3d9');
+
+      if (s.ph === 'count') {
+        const n = Math.ceil(s.cnt - .5);
+        ctx.fillStyle = '#0006'; ctx.fillRect(0, 0, W, H);
+        label(n > 0 ? String(n) : 'スタート!', W / 2, H / 2, Math.min(W, H) * (n > 0 ? .3 : .15), '#ffcf40', '#000');
+      }
+    },
+  };
+
+  // PC 用: いま持っている物と向いているマスから、次にやることを表示する
+  function hintFor(s, H, [tx, ty], map) {
+    const c = tileAt(map, tx, ty), it = s.it[tx + ',' + ty], pot = s.po[tx + ',' + ty];
+    if (!H) {
+      if (CRATE[c]) return `つかむ → ${EMO[CRATE[c]]} をとる`;
+      if (c === 'C' && it && ING.has(it.k) && !it.ch) return 'Shift 長押し → 🔪 きる';
+      if (c === 'P') return 'つかむ → 🍽️ お皿をとる';
+      if (pot && pot.st === 'burnt') return 'つかむ → 焦げを捨てる';
+      if (pot && pot.st === 'filling') return 'つかむ → 鍋から食材を取り出す';
+      if (pot && pot.st === 'done') return 'からのお皿を持ってきて、スープをすくおう';
+      if (it) return 'つかむ → 持ち上げる';
+      return '食材箱から食材をとろう';
+    }
+    if (H.k === 'plate') {
+      if (!H.c.length) return '切った食材をのせる / できたスープをすくう';
+      if (c === 'W') return 'つかむ → 🛎️ 提出!';
+      return 'お皿を 🛎️ 提出口へ! (のせ足しもOK)';
+    }
+    if (!H.ch) return c === 'C' && !it ? 'つかむ → まな板に置く(置いたら Shift 長押しで切る)' : 'まな板 🔪 に置いて切ろう';
+    if (H.k === 'lettuce') return 'お皿 🍽️ に盛ろう (お皿置き場でもOK)';
+    return 'お皿 🍽️ に盛る / 鍋に入れる (同じ野菜3つでスープ)';
+  }
+
+  function drawItem(it, x, y, sz) {
+    if (it.k === 'plate') {
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#bbb'; ctx.lineWidth = sz * .04;
+      ctx.beginPath(); ctx.ellipse(x, y + sz * .08, sz * .48, sz * .3, 0, 0, 7); ctx.fill(); ctx.stroke();
+      const soup = it.c.find(c => c.endsWith('_soup'));
+      if (soup) { emo('🍲', x, y, sz * .6); emo(EMO[soup.replace('_soup', '')], x + sz * .3, y - sz * .2, sz * .28); }
+      else it.c.forEach((g, i) => emo(EMO[g], x + (i - (it.c.length - 1) / 2) * sz * .3, y + sz * .02, sz * .36));
+      return;
+    }
+    if (it.ch) {
+      for (const [dx, dy] of [[-.18, .05], [.18, .08], [0, -.12]]) emo(EMO[it.k], x + dx * sz, y + dy * sz, sz * .38);
+    } else emo(EMO[it.k], x, y, sz * .75);
+  }
+})();
+
+// =====================================================================
+// 起動
+// =====================================================================
+Input.init();
+initTouch();
+$('#nameIn').value = store('waiwai-name') || '';
+const hashCode = location.hash.slice(1).toUpperCase();
+if (/^[A-Z]{4}$/.test(hashCode)) { $('#codeIn').value = hashCode; setStatus('コードが入力済み!なまえを入れて「参加」を押してね'); }
+$('#createBtn').onclick = createRoom;
+$('#joinBtn').onclick = joinRoom;
+$('#codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(); });
+$('#startBtn').onclick = hostStart;
+$('#backBtn').onclick = hostBackToLobby;
+$('#leaveBtn').onclick = () => backToTitle('');
+$('#copyBtn').onclick = () => {
+  const el = $('#shareUrl'); el.select();
+  (navigator.clipboard ? navigator.clipboard.writeText(el.value) : Promise.reject()).then(() => toast('URLをコピーしました'), () => { document.execCommand('copy'); toast('URLをコピーしました'); });
+};
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
