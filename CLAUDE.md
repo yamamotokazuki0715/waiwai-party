@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 開発・動作確認
 
+- 公開: `main` に push すると GitHub Pages(https://yamamotokazuki0715.github.io/waiwai-party/)に自動で反映される
 - ビルド・lint・テストは無い。`index.html` をブラウザで開けば動く
 - 複数タブで接続テストをするときは HTTP で配信する(`file://` だとタブ間テストがうまくいかないことがある)。例: `python -m http.server 8123`
 - 1人でも「ルームをつくる」→「スタート」でプレイできる
