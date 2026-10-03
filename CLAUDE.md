@@ -25,20 +25,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ホストの Peer ID は `PEER_PREFIX + 4文字ルームコード`。クライアントはその ID に接続する。URL の `#CODE` で招待できる
 - **ホスト**が `setInterval` 33ms でゲーム状態を進め(`step`)、スナップショットを全員に配信する(`st`)
 - **各プレイヤー**は自キャラの移動・衝突をローカルで計算し、位置+ボタン押下回数を `in` メッセージで送る。ホストは位置をそのまま採用し、アイテム操作などのゲーム判定だけを行う
-- ボタンは「押下回数カウンタ」(`g`, `a`)で送り、ホストが前回値との差分で押下を検出する(パケットをまたいでも取りこぼさない)
+- 例外として `sumo`(おしくらまんじゅう)は物理で押し合うため、移動もホスト権威。クライアントは入力(`mx,my,a,gh`)だけを送り、全員の位置を `smoothPlayers` で補間して描く
+- ホストがプレイヤーを強制的に移動させる場合(リスポーン・ラウンド開始)は `sp`(スポーン番号)を増やす。クライアントは `syncMe` で sp の変化を検知して位置を合わせ、ホストは sp が一致しない古い入力の位置を無視する
+- ボタンは「押下回数カウンタ」(`g`, `a`)で送り、ホストが前回値との差分で押下を検出する(パケットをまたいでも取りこぼさない)。押しっぱなし状態は `gh`, `ah`
 - ホスト自身の入力も `app.inputs[myId]` に入れ、クライアントと同じ経路で処理する
 - `close` イベントが来ないケースに備え、2秒間隔の `ping` ハートビートで、10秒無通信なら切断扱いにする
 - メッセージ種別は `index.html` の「通信」セクション冒頭のコメントに一覧がある
 
 ### モードの追加方法
 
-`MODES[id]` にオブジェクトを登録し、`MODE_LIST` にメタ情報(名前・絵文字・説明・操作ヘルプ)を追加する。`MODE_LIST` にあって `MODES` に実装が無いものは、ロビーで「準備中」と表示される。
+`MODES[id]` にオブジェクトを登録し、`MODE_LIST` にメタ情報を追加する。メタ情報は、名前・絵文字・説明、ロビー用ヘルプ `help`、PC用キー表示 `keys`、スマホボタンのラベル `btn: [つかむ側, アクション側]`(`null` ならボタンを隠す)。`MODE_LIST` にあって `MODES` に実装が無いものは、ロビーで「準備中」と表示される。
 
 必要なメソッド:
-- ホスト側: `create(players)`, `addPlayer(S,p)`, `removePlayer(S,id)`, `initData(S)`(開始時に1回だけ送る静的データ), `step(S,dt,inputs)`, `snapshot(S)`, `isOver(S)`, `result(S)` → `{stars:0-3, stats:[[ラベル,値],...]}`
-- 全員: `clientFrame(app,inp,dt)`(ローカル移動・効果音・演出), `inputMsg(app,inp)`, `render(app,dt)`
+- ホスト側: `create(players)`, `addPlayer(S,p)`(途中参加でも呼ばれる), `removePlayer(S,id)`, `initData(S)`(開始時に1回だけ送る静的データ), `step(S,dt,inputs)`, `snapshot(S)`, `isOver(S)`, `result(S)`
+- `result` の形: 協力モードは `{stars:0-3, stats:[[ラベル,値]]}`、対戦モードは `{title, rank:[[名前,値,色]], stats?}`
+- 全員: `clientFrame(app,inp,dt)`(ローカル移動・効果音・演出), `inputMsg(app,inp)`, `render(app,dt,W,H)`
+- `render` は `safeRect()` 内に平行移動した座標系で呼ばれる。スマホではタッチボタンの領域(横向きなら右、縦向きなら下の `TOUCH_PAD`)が除かれるので、`W,H` だけを基準に描くこと
 
-効果音・ふきだしは、ホスト状態の `ev` 配列(連番 `id` 付き)に積む。各クライアントは `app.lastEv` 以降のイベントを再生する。
+共通ヘルパー(「モード共通ヘルパー」セクション): グリッド衝突 `gridAt/gridCollide/gridMove`、イベント `addEv/playEvents/drawFloaters`、補間 `smoothPlayers`、`syncMe`、CPU補充 `fillCpus`(対戦モードは4人未満なら CPU で埋め、CPU の AI はホストの `step` 内で動かす)、`drawBlob`、`countdown`。
+
+効果音・ふきだしは、ホスト状態の `ev` 配列(連番 `id` 付き)に積む。各クライアントは `app.lastEv` 以降のイベントを再生する。効果音は `SFX` に周波数の列で定義する。
 
 ### ドタバタキッチン(`cooking`)
 
@@ -46,3 +52,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 操作対象は、プレイヤーのいるマスから向き(4方向に丸める)の隣のマス(`target()`)
 - アイテム: 食材 `{k, ch}`(`ch`=切った)、お皿 `{k:'plate', c:[...]}`。スープは `'<食材>_soup'` としてお皿の `c` に入る
 - 注文判定は材料をソートして連結したキー(`recipeKey`)で比較する
+
+### その他のモード
+
+- `sumo` おしくらまんじゅう: 縮む円形の土俵でのバトルロイヤル。3ラウンド制
+- `bomb` ばくだんリレー: 接触で爆弾を渡す。導火線の残り時間はクライアントに送らず、揺れの強さ `fz` だけを送る。3ラウンド制
+- `paint` ぬりぬりバトル: 2チームで塗り合うスプラトゥーン風。塗り状態は `paint` 配列で、スナップショットでは文字列 `pa`(`.`/`0`/`1`)として送る。弾はホストで処理する
