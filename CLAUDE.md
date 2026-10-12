@@ -6,7 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 「ワイワイパーティー」— ブラウザで遊ぶオンライン同時プレイのパーティーゲーム。**`index.html` 1ファイルで完結**させるのが前提(ビルド工程・依存パッケージなし)。GitHub Pages で公開する。
 
-- 外部依存は PeerJS(WebRTC)のみ。`cdn.jsdelivr.net` から `<script>` で読み込む
+- 外部依存は PeerJS(WebRTC)と three.js のみ。どちらも `cdn.jsdelivr.net` から読み込む。three.js は 3D モードの開始時に `T3.ensure()` で遅延読み込みする(グローバル `THREE` を使うため UMD ビルドの r149 を固定)
+- 実在の店名・ロゴ・キャラクターは使わない(公開ページのため)。ラーメン屋モードは一蘭「風」のオリジナル店「とんこつ 一心亭」
 - シグナリングは PeerJS の公開クラウドサーバー。独自サーバーは持たない
 - UI テキストは日本語
 
@@ -36,6 +37,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `MODES[id]` にオブジェクトを登録し、`MODE_LIST` にメタ情報を追加する。メタ情報は、名前・絵文字・説明、ロビー用ヘルプ `help`、PC用キー表示 `keys`、スマホボタンのラベル `btn: [つかむ側, アクション側]`(`null` ならボタンを隠す)。`MODE_LIST` にあって `MODES` に実装が無いものは、ロビーで「準備中」と表示される。
 
+- ルールなどの選択肢は `opts: { key: { label, choices: [[値, 表示名]], help: {値: 説明} } }` で定義する。ロビーでホストが選び(`app.modeOpts`)、`create(players, opts)` に渡る。値の取得は `modeOpts(id)`
+- 役割によって操作が変わる場合は、`clientFrame` 内で `setControls(keysHtml, [青ボタン, 赤ボタン])` を呼ぶ
+- `three: true` のモードは、背面の WebGL キャンバス `#cv3` に3Dを描き、`#cv` は HUD 用の透明レイヤーになる
+
 必要なメソッド:
 - ホスト側: `create(players)`, `addPlayer(S,p)`(途中参加でも呼ばれる), `removePlayer(S,id)`, `initData(S)`(開始時に1回だけ送る静的データ), `step(S,dt,inputs)`, `snapshot(S)`, `isOver(S)`, `result(S)`
 - `result` の形: 協力モードは `{stars:0-3, stats:[[ラベル,値]]}`、対戦モードは `{title, rank:[[名前,値,色]], stats?}`
@@ -46,8 +51,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 効果音・ふきだしは、ホスト状態の `ev` 配列(連番 `id` 付き)に積む。各クライアントは `app.lastEv` 以降のイベントを再生する。効果音は `SFX` に周波数の列で定義する。
 
+### 3D 共通(`T3`)
+
+- `T3.ensure()` で three.js を読み込む。`#cv3` は1枚なので、WebGL レンダラーは `T3.getRenderer()` で全モード共有する。毎フレーム `T3.fit(camera, W, H)` で、スマホのボタン領域を除いたビューポートに合わせる
+- 人間は `T3.makeHuman(group, J, look)` で作る。関節 `J`(head / neckB / pelvis / sh・el・ha・hip・kn・an・to の R/L)の間をカプセルでつなぐ。`body.pose(J2)` で全身のポーズを付け直せる(歩き・お辞儀・食べる・手を伸ばす)。上半身を倒すのは `T3.lean(J, 角度)`
+- THREE のオブジェクトは読み込み後にしか作れないので、モジュールの最上位で生成しないこと(`P` のような短い名前のヘルパーをローカル変数で上書きしないよう注意)
+
 ### ドタバタキッチン(`cooking`)
 
+- ステージ `opts.stage`(basic / split / long / tight → `STAGES` のマップ)と難易度 `opts.diff`(easy / normal / hard / oni → `DIFFS`: 制限時間・注文の時間・間隔・焦げやすさ・出る料理・★の基準)。マップと `burnK` は `initData` でクライアントへ送る。スポーン位置は床マスから自動で選ぶ
 - マップは文字列グリッド(`#` カウンター、`T/L/O` 食材箱、`C` まな板、`S` コンロ、`P` お皿、`W` 提出口、`X` ゴミ箱)。座標はタイル単位で、キーは `"x,y"`
 - 操作対象は、プレイヤーのいるマスから向き(4方向に丸める)の隣のマス(`target()`)
 - アイテム: 食材 `{k, ch}`(`ch`=切った)、お皿 `{k:'plate', c:[...]}`。スープは `'<食材>_soup'` としてお皿の `c` に入る
@@ -58,3 +70,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `sumo` おしくらまんじゅう: 縮む円形の土俵でのバトルロイヤル。3ラウンド制
 - `bomb` ばくだんリレー: 接触で爆弾を渡す。導火線の残り時間はクライアントに送らず、揺れの強さ `fz` だけを送る。3ラウンド制
 - `paint` ぬりぬりバトル: 2チームで塗り合うスプラトゥーン風。塗り状態は `paint` 配列で、スナップショットでは文字列 `pa`(`.`/`0`/`1`)として送る。弾はホストで処理する
+- `mosquito2d` 蚊の一生 2D: ボウフラ(水たまりでエサを食べて羽化) → 成虫(寝ている人間の顔・腕・足で吸う) → 水たまりで産卵して得点。かゆいゲージが100で `warn`(たたく位置はこの時点で確定)→ 平手打ち。たたかれたら `rebirth` で次の世代へ(sp を進める)
+- `mosquito` 蚊の一生 3D(PS2「蚊」風): 人間は とうさん(ソファ)/ ばあちゃん(昼寝)/ むすめ(うつ伏せでスマホ)の3人。`HUMANS` の各人は、関節 `J`(見た目)・当たり判定の箱 `col`・吸える場所 `spots`・ツボ `relax`・見た目 `look`・敏感さ `sens` を持つ。座標はメートル単位で (x, 高さ y, z)。ホスト側は three.js に依存しない純粋な計算(`buildWorld` で吸える場所と当たり判定を作る)
+  - 見た目は `makeHuman` が関節の間をカプセルでつないで作る(顔のパーツと髪型は `makeHead`)。腕(前腕)とむすめのすねは、毎フレーム `setLimb` で付け直して動かす。three.js のオブジェクトは読み込み後にしか作れないので、モジュールの最上位では生成しないこと
+  - ルール `opts.rule`: `coop`(目標量を協力して集める)/ `vs`(吸った量を競う)/ `human`(ランダムな1人がとうさんを操作し、`reticle(ry, rh)` でねらってたたく)
+  - 吸う: クライアントが近くの場所に吸い付き(`at` = spot 番号)、ホストが距離を検証する。吸う強さ `r` は押しっぱなしで上がり、ストレスは `r²` に比例して増える(緑ゾーン `SWEET`)
+  - 人間の状態: `calm`(ストレス75以上で、吸っている蚊を「ピクッ」とたたく)→ 100で `angry`(近くの蚊を攻撃。ツボ3回で `calm`)。ストレス50以上でツボ(`relax`)が出現し、体当たりでストレスが下がる
+  - たたく(`sl`)は予告時間のあとに `resolveSlap`。蚊をはがすときは `kk` を増やし、クライアントは kk の変化で吸い付きを解除する
+  - イベントは z 付きの `ev3` で積み、HUD でスクリーン座標に投影して表示する
+  - 吸い付き操作: 飛行中は近くて前方にある場所を自動でロックオン(`me.lock`)。「すう」を押すと自動で飛んでいき(`me.home`)、着いたら吸い付く(`me.att`)。「すう」を押している間はホバリング
+- `ramen` ラーメン屋さん 3D(一蘭風): 店員側(z < 1.0)と客席側(z > 1.3)が窓つきの壁で仕切られ、席ごとに暖簾 `nr` がある。厨房は x > `KX`
+  - 席の状態: empty → enter → sheet → call(🔔)→ 注文を受ける → wait → 提供 → eating →(kaecall → kaewait → eating)→ leave → dirty(丼を下げる)→ empty
+  - 操作は1ボタン(`seatAct` / `stationAct`。暖簾が下りていれば上げ、上がっていれば状況に応じた行動、なければ下げる)+ お辞儀ボタン。クライアントの `actionText` は、ホストと同じ判定で「いま押すと何が起きるか」を表示する
+  - 食事中(提供後の猶予 `grace` 以降)に暖簾を上げると、客の性格 `CTYPES[].dis` に応じて満足度が下がる。満足度で代金とチップが決まり、バトルでは注文を受けた店員(`owner`)の売上になる
+  - 麺の硬さはゆで時間で決まる(`firm`)。丼の中身 `{soup, men, negi, chashu, egg}` をお好みシート `order` と比べてミスを数える
