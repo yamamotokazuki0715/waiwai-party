@@ -83,4 +83,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - 席の状態: empty → enter → sheet → call(🔔)→ 注文を受ける → wait → 提供 → eating →(kaecall → kaewait → eating)→ leave → dirty(丼を下げる)→ empty
   - 操作は1ボタン(`seatAct` / `stationAct`。暖簾が下りていれば上げ、上がっていれば状況に応じた行動、なければ下げる)+ お辞儀ボタン。クライアントの `actionText` は、ホストと同じ判定で「いま押すと何が起きるか」を表示する
   - 食事中(提供後の猶予 `grace` 以降)に暖簾を上げると、客の性格 `CTYPES[].dis` に応じて満足度が下がる。満足度で代金とチップが決まり、バトルでは注文を受けた店員(`owner`)の売上になる
+  - 視点 `opts.view`: `tps`(後ろ上からのカメラ)/ `fps`(一人称。自分の体は描かず、持ち物はカメラの前に表示。PC はポインタロックでマウス見回し)。操作対象はクライアントが選んで `tg` で送り(一人称は `looking` で視線方向を優先、三人称は `nearest`)、ホストは `resolveTarget` で距離だけ確認して使う
+  - お辞儀はボタン長押し中ずっと(`inp.ah` → `bh` → ホストの `p.bw`)。押した瞬間(`a` の変化)にお客さんへのボーナス判定。お辞儀中は歩けないが、一人称では視点が下がったまま見回せる(`me.bowK`)
+  - 一人称のマウス感度は `LOOK_SENS`。ポインタロックは `unadjustedMovement`(OSのマウス加速なし)を優先する
   - 麺の硬さはゆで時間で決まる(`firm`)。丼の中身 `{soup, men, negi, chashu, egg}` をお好みシート `order` と比べてミスを数える
