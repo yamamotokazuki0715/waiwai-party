@@ -61,6 +61,12 @@ section{margin-top:22px}
 .tbtn.on{filter:brightness(1.5);transform:scale(.94)}
 #btnGrab{right:24px;bottom:110px;background:#448affcc}
 #btnAct{right:120px;bottom:30px;background:#ff5252cc}
+.tbtn.sm{width:66px;height:66px;font-size:13px;display:none}
+#btnX1{right:34px;bottom:206px;background:#43a047cc}
+#btnX2{right:132px;bottom:128px;background:#ff9800cc}
+/* 視点ドラッグ用(3D の一人称・TPS シューター) */
+#lookzone{position:absolute;left:45%;right:0;top:0;bottom:0;pointer-events:auto;touch-action:none;display:none}
+@media (orientation:portrait){#lookzone{left:0;bottom:215px}}
 #toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000c;padding:8px 16px;border-radius:20px;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none}
 #toast.on{opacity:1}
 .stars{font-size:64px;text-align:center;color:var(--acc);letter-spacing:6px}
@@ -136,9 +142,12 @@ section{margin-top:22px}
 </div>
 
 <div id="touch">
+  <div id="lookzone"></div>
   <div id="joyzone"><div id="joybase"><div id="knob"></div></div></div>
   <div class="tbtn" id="btnAct">きる<br>ダッシュ</div>
   <div class="tbtn" id="btnGrab">つかむ</div>
+  <div class="tbtn sm" id="btnX1"></div>
+  <div class="tbtn sm" id="btnX2"></div>
 </div>
 <div id="toast"></div>
 
@@ -181,6 +190,7 @@ const SFX = {
   calm: [[660, .1, 'sine'], [550, .1, 'sine'], [440, .2, 'sine']], goal: [[523, .1], [659, .1], [784, .1], [1046, .3]],
   noren: [[900, .03, 'triangle'], [700, .04, 'triangle']], call: [[1046, .12, 'sine'], [784, .2, 'sine']],
   wash: [[500, .05, 'sine'], [700, .05, 'sine'], [500, .05, 'sine']],
+  ink: [[620, .025, 'triangle']], throw: [[400, .06, 'sine'], [250, .08, 'sine']],
 };
 function sfx(kind) {
   const seq = SFX[kind]; if (!seq) return;
@@ -198,8 +208,9 @@ function sfx(kind) {
 
 // ---------- 入力 (キーボード / ゲームパッド / タッチ) ----------
 // g = つかむボタンの押下回数, a = アクションボタンの押下回数, gh / ah = それぞれ押しっぱなし
+// x1 / x2 = スマホの追加ボタン(モードが setControls で表示したときだけ)の押下回数, x1h = x1 押しっぱなし
 const Input = {
-  keys: new Set(), g: 0, a: 0, touch: { mx: 0, my: 0, a: false, g: false }, pad: { g: false, a: false },
+  keys: new Set(), g: 0, a: 0, x1: 0, x2: 0, touch: { mx: 0, my: 0, a: false, g: false, x1: false }, pad: { g: false, a: false },
   init() {
     addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT') return;
@@ -235,9 +246,23 @@ const Input = {
     }
     mx += this.touch.mx; my += this.touch.my;
     const l = Math.hypot(mx, my); if (l > 1) { mx /= l; my /= l; }
-    return { mx, my, g: this.g, a: this.a, ah, gh };
+    return { mx, my, g: this.g, a: this.a, ah, gh, x1: this.x1, x2: this.x2, x1h: this.touch.x1 };
   },
 };
+
+// ---------- 視点操作 (3D) ----------
+// PC: 画面クリックでポインタロック → マウス移動で見回す。マウスボタン(mb: 1=左, 2=右)も取れる
+// スマホ: #lookzone のドラッグで見回す(setTouchLook(true) で表示)
+const Look = {
+  dx: 0, dy: 0, mb: 0,
+  take() { const r = { dx: this.dx, dy: this.dy }; this.dx = this.dy = 0; return r; },
+  locked: () => document.pointerLockElement === cv,
+};
+addEventListener('mousemove', e => { if (Look.locked()) { Look.dx += e.movementX; Look.dy += e.movementY; } });
+addEventListener('mousedown', e => { if (Look.locked()) Look.mb = e.buttons; });
+addEventListener('mouseup', e => { Look.mb = Look.locked() ? e.buttons : 0; });
+addEventListener('contextmenu', e => { if (Look.locked() || app.screen === 'game') e.preventDefault(); });
+function setTouchLook(on) { const z = $('#lookzone'); const v = on && isTouch ? 'block' : 'none'; if (z.style.display !== v) z.style.display = v; }
 
 function initTouch() {
   const zone = $('#joyzone'), base = $('#joybase'), knob = $('#knob');
@@ -266,6 +291,17 @@ function initTouch() {
   };
   btn($('#btnGrab'), () => { Input.g++; Input.touch.g = true; }, () => { Input.touch.g = false; });
   btn($('#btnAct'), () => { Input.a++; Input.touch.a = true; }, () => { Input.touch.a = false; });
+  btn($('#btnX1'), () => { Input.x1++; Input.touch.x1 = true; }, () => { Input.touch.x1 = false; });
+  btn($('#btnX2'), () => { Input.x2++; });
+  // 視点ドラッグ(マウスの移動量に近い感覚になるよう倍率をかける)
+  const lz = $('#lookzone'); let lid = null, lx = 0, ly = 0;
+  lz.addEventListener('pointerdown', e => { lid = e.pointerId; lx = e.clientX; ly = e.clientY; lz.setPointerCapture(lid); });
+  lz.addEventListener('pointermove', e => {
+    if (e.pointerId !== lid) return;
+    Look.dx += (e.clientX - lx) * 1.6; Look.dy += (e.clientY - ly) * 1.6; lx = e.clientX; ly = e.clientY;
+  });
+  const lend = e => { if (e.pointerId === lid) lid = null; };
+  lz.addEventListener('pointerup', lend); lz.addEventListener('pointercancel', lend);
 }
 const isTouch = matchMedia('(pointer:coarse)').matches;
 
@@ -391,6 +427,7 @@ setInterval(() => {
   const M = MODES[app.modeId];
   M.step(app.hs, dt, app.inputs);
   const s = M.snapshot(app.hs);
+  if (M.onSnap) M.onSnap(app, s);
   app.snap = s;
   Net.broadcast({ t: 'st', s });
   if (M.isOver(app.hs)) {
@@ -453,7 +490,7 @@ function clientOnData(d) {
       else if (app.screen === 'lobby') renderLobby();
       break;
     case 'start': app.phase = 'game'; startLocal(d.mode, d.init); break;
-    case 'st': app.snap = d.s; break;
+    case 'st': { const M = MODES[app.modeId]; if (M && M.onSnap) M.onSnap(app, d.s); app.snap = d.s; break; }
     case 'res': app.phase = 'result'; showResult(d.r); break;
   }
 }
@@ -479,6 +516,8 @@ function showScreen(id) {
     const [gLabel, aLabel] = (m && m.btn) || ['つかむ', 'アクション'];
     $('#btnGrab').innerHTML = gLabel || ''; $('#btnAct').innerHTML = aLabel;
     $('#btnGrab').style.display = gLabel ? '' : 'none';
+    $('#btnX1').style.display = $('#btnX2').style.display = 'none';
+    setTouchLook(false);
     ctrlState = '';
     $('#cv3').style.display = MODES[app.modeId] && MODES[app.modeId].three ? 'block' : 'none';
     setHint('');
@@ -531,10 +570,20 @@ function setControls(keys, btn) {
   $('#ctrlKeys').innerHTML = keys;
   $('#btnGrab').innerHTML = btn[0] || ''; $('#btnGrab').style.display = btn[0] ? '' : 'none';
   $('#btnAct').innerHTML = btn[1];
+  // 3つ目・4つ目(スマホの追加ボタン)
+  for (const [id, label] of [['#btnX1', btn[2]], ['#btnX2', btn[3]]]) { $(id).innerHTML = label || ''; $(id).style.display = label ? 'flex' : 'none'; }
 }
+// 3D モードで画面クリック → マウスで見回せるようにする(モードの pointerLock(app) が true のとき)
+document.addEventListener('click', e => {
+  const M = MODES[app.modeId];
+  if (e.target !== cv || app.screen !== 'game' || isTouch || !M || !M.pointerLock || !M.pointerLock(app) || Look.locked() || !cv.requestPointerLock) return;
+  // OS のマウス加速を切った生の移動量を優先(非対応ブラウザは通常のロック)
+  try { const r = cv.requestPointerLock({ unadjustedMovement: true }); if (r && r.catch) r.catch(() => cv.requestPointerLock()); }
+  catch (e) { cv.requestPointerLock(); }
+});
 
 function startLocal(modeId, init) {
-  Object.assign(app, { modeId, init, snap: null, me: null, rp: {}, lastEv: -1, floaters: [] });
+  Object.assign(app, { modeId, init, snap: null, me: null, rp: {}, lastEv: -1, floaters: [], paint: null, paintDirty: true, bursts: [], feed: [], hitT: 0 });
   showScreen('game'); sfx('start');
 }
 
@@ -752,6 +801,11 @@ const MODE_LIST = [
           '<span>せんぷく(長押し) <span class="k">Space</span> / <span class="k">J</span></span>' +
           '<span>自分の色の上でせんぷく → 高速移動&インク回復</span>',
     btn: ['せんぷく', 'うつ'] },
+  { id: 'splat3d', emoji: '🦑', name: 'ぬりぬりバトル 3D', desc: 'スプラトゥーン風のナワバリバトル!(3D)',
+    help: '<b>操作(PC)</b> 移動: WASD ・ 視点: マウス(画面をクリック)か 矢印 ・ 撃つ: 左クリック / J ・ イカ: Shift / K(長押し) ・ ジャンプ: Space ・ ボム: 右クリック / E<br>' +
+          '<b>操作(スマホ)</b> 左スティックで移動、画面右側をドラッグで狙う。ボタン: うつ・イカ・ジャンプ・ボム<br>' +
+          '<b>遊び方</b> 2チームで3分間ナワバリバトル!床を自分の色で塗った面積が多いほうが勝ち。自分の色の上でイカになると高速で泳げてインクが回復、敵から見えにくくなる。相手のインクの上は遅くてダメージを受ける。3発当てると相手をたおせる。ボムはインクを大きく使う。人数が少ないとCPUが参加。',
+    keys: '', btn: ['イカ', 'うつ'] },
   { id: 'mosquito', emoji: '🦟', name: '蚊の一生 3D', desc: '人間にバレずに血を吸え!(3D)',
     help: '<b>操作</b> 前進・後退・旋回: WASD / 矢印 ・ 上昇(押しっぱなし、離すとゆっくり下降): Space / J ・ 吸う(押しっぱなし): Shift / K<br>' +
           '<b>遊び方</b> 人間に近づくと吸える場所を自動でロックオン。「吸う」を押すと自動で飛んでいって止まる(押している間はホバリング)。押しっぱなしで吸う強さが上がり、緑のゾーンを超えると人間のストレスが急上昇!ストレスが上がると体に青いツボが出るので、体当たりして落ち着かせよう。ストレスが満タンになると怒りモードで攻撃してくる(赤い球の予告から逃げろ)。',
@@ -778,7 +832,7 @@ const MODE_LIST = [
       help: { coop: '<b>協力</b> みんなで店を回して売上を伸ばそう。240秒。',
               vs: '<b>バトル</b> 注文を受けた店員にその客の売上が入る。売上No.1を目指せ!(ほかの店員の客の暖簾を上げると…?)180秒。' } },
       view: { label: '視点', choices: [['tps', '三人称'], ['fps', '一人称']],
-        help: { tps: '', fps: '<b>一人称</b> 店員の目線でプレイ。見ている方向の暖簾や設備を操作する。PC: W/S 前後・A/D 横歩き・マウス(画面クリック)か ←→ で見回す。スマホ: スティック上下で前後・左右で旋回。お辞儀中は視点が下がったまま見回せるので、お客さんの顔をのぞき込めるかも…?' } } } },
+        help: { tps: '', fps: '<b>一人称</b> 店員の目線でプレイ。見ている方向の暖簾や設備を操作する。PC: W/S 前後・A/D 横歩き・マウス(画面クリック)か ←→ で見回す。スマホ: スティックで移動、画面右側をドラッグで見回し。お辞儀中は視点が下がったまま見回せるので、お客さんの顔をのぞき込めるかも…?' } } } },
 ];
 
 // =====================================================================
@@ -1070,6 +1124,13 @@ const MODE_LIST = [
       me.chopT -= dt;
       if (s.pl.some(p => p.ch) && me.chopT <= 0) { sfx('chop'); me.chopT = 0.15; }
       if (!isTouch) setHint(hintFor(s, mine.h, target(me), map));
+      // 青ボタンの表示を、持っているかどうかで「つかむ」⇔「おく」に切り替える
+      const [tx, ty] = target(me), tc = tileAt(map, tx, ty);
+      const gl = !mine.h ? 'つかむ' : tc === 'W' ? '提出' : tc === 'X' ? 'すてる' : tc === 'S' && mine.h.k !== 'plate' ? '鍋に入れる' : 'おく';
+      setControls('<span>移動 <span class="k">W</span><span class="k">A</span><span class="k">S</span><span class="k">D</span> / <span class="k">←↑↓→</span></span>' +
+        `<span>${gl} <span class="k">Space</span> / <span class="k">J</span></span>` +
+        '<span>きる(長押し)・ダッシュ <span class="k">Shift</span> / <span class="k">K</span></span>' +
+        '<span>🥗 切った野菜をお皿へ ・ 🍲 同じ野菜3つを鍋へ ・ 🛎️ 提出</span>', [gl === '鍋に入れる' ? '鍋に<br>入れる' : gl, 'きる<br>ダッシュ']);
     },
     inputMsg(app, inp) {
       const me = app.me; if (!me) return null;
@@ -3128,6 +3189,7 @@ const T3 = (() => {
         return ok('drop', STATIONS[id].name);
       case 'sink':
         if (H && H.k === 'dirty') { p.held = null; return ok('wash', 'ピカピカ!'); }
+        if (H && H.k === 'bowl') { p.held = null; return ok('trash', '流しに捨てた'); }  // 作り間違えた丼もここで捨てられる
         return nope('下げた丼を洗う場所');
       case 'trash':
         if (H) { p.held = null; return ok('trash', 'ポイ'); }
@@ -3169,19 +3231,11 @@ const T3 = (() => {
     }
   }
 
-  // 一人称のマウス見回し(画面クリックでポインタロック)
-  const LOOK_SENS = .0045;
-  const Mouse = { dx: 0, dy: 0, take() { const r = { dx: this.dx, dy: this.dy }; this.dx = this.dy = 0; return r; } };
-  addEventListener('mousemove', e => { if (document.pointerLockElement === cv) { Mouse.dx += e.movementX; Mouse.dy += e.movementY; } });
-  cv.addEventListener('click', () => {
-    if (!(app.screen === 'game' && app.modeId === 'ramen' && app.init && app.init.view === 'fps' && !isTouch && cv.requestPointerLock)) return;
-    // OS のマウス加速を切った生の移動量で見回す(非対応ブラウザは通常のロック)
-    try { const r = cv.requestPointerLock({ unadjustedMovement: true }); if (r && r.catch) r.catch(() => cv.requestPointerLock()); }
-    catch (e) { cv.requestPointerLock(); }
-  });
+  const LOOK_SENS = .0045;  // 一人称の見回し感度 (ラジアン / ピクセル)
 
   MODES.ramen = {
     three: true,
+    pointerLock: app => app.init && app.init.view === 'fps',
     create(players, opts) {
       const rule = opts.rule || 'coop', n = players.length;
       const nOpen = clamp(2 + n * 2, 4, NS);
@@ -3268,12 +3322,12 @@ const T3 = (() => {
       // お辞儀: ボタンを押している間ずっと頭を下げたまま
       me.bowK += ((inp.ah ? 1 : 0) - me.bowK) * Math.min(1, 7 * dt);
       me.mv = 0;
-      const look = Mouse.take();
+      const look = Look.take();
       if (fps) {
         // 見回しはいつでもできる(お辞儀中も、下がった視点のまま見回せる)
         let turn = 0;
         if (!isTouch) { const K = Input.keys; turn = (K.has('ArrowRight') ? 1 : 0) - (K.has('ArrowLeft') ? 1 : 0); }
-        else turn = inp.mx;
+        setTouchLook(true);  // スマホ: 画面右側のドラッグで見回し(スティックは移動だけ)
         const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(Boolean) : null;
         if (gp && Math.abs(gp.axes[2] || 0) > .15) turn += gp.axes[2];
         if (gp && Math.abs(gp.axes[3] || 0) > .15) me.pt -= gp.axes[3] * 1.8 * dt;
@@ -3284,7 +3338,7 @@ const T3 = (() => {
         let vx, vz;
         if (fps) {
           // 一人称: W/S 前後・A/D 横歩き(ゲームパッド/スマホはスティック)
-          let fwd = -inp.my, strafe = 0;
+          let fwd = -inp.my, strafe = inp.mx;
           if (!isTouch) {
             const K = Input.keys, k = c => K.has(c) ? 1 : 0;
             fwd = k('KeyW') + k('ArrowUp') - k('KeyS') - k('ArrowDown'); strafe = k('KeyD') - k('KeyA');
@@ -3326,7 +3380,7 @@ const T3 = (() => {
   function actionText(s, me, H) {
     const t = me.tgt;
     const key = isTouch ? '「操作」' : 'Space';
-    if (!t) return '';
+    if (!t) return H && H.k === 'bowl' ? '作り間違えたら ゴミ箱 か 洗い場 で捨てられる' : '';
     if (t.kind === 'seat') {
       const se = s.se[t.i], no = NS - t.i;
       if (!se.nr) return se.st === 'eating' && !se.gr ? `⚠ ${no}番は食事中!暖簾を上げると怒られる` : `${key}: ${no}番の暖簾を上げる`;
@@ -3344,8 +3398,8 @@ const T3 = (() => {
       return H && s.bk.some(b => b >= 0) ? `${key}: 麺をあげる(ゲージで硬さ確認)` : `${key}: 麺を投入(茹で時間で硬さが決まる)`;
     }
     if (t.id === 'bowls') return H ? '' : `${key}: 丼をとる`;
-    if (t.id === 'sink') return H && H.k === 'dirty' ? `${key}: 丼を洗う` : '';
-    if (t.id === 'trash') return H ? `${key}: 捨てる` : '';
+    if (t.id === 'sink') return H && H.k === 'dirty' ? `${key}: 丼を洗う` : H && H.k === 'bowl' ? `${key}: 捨てる(作り直し)` : '';
+    if (t.id === 'trash') return H ? `${key}: 捨てる${H.k === 'bowl' ? '(作り直し)' : ''}` : '';
     return H && H.k === 'bowl' ? `${key}: ${st.name}を入れる` : `${st.name}(丼を持ってきて)`;
   }
   const bowlText = b => !b ? '' : b.k === 'dirty' ? '下げた丼' :
@@ -3484,6 +3538,12 @@ const T3 = (() => {
     }
     const sink = boxM(scene, [10.1, .91, 2.3], [.6, .02, .3], std('#5d8fb0', .1, { metalness: .3 }));
     const trash = new THREE.Mesh(new THREE.CylinderGeometry(.18, .15, .6, 16), std('#2b4a2b', .7)); trash.position.set(9.1, .3, 2.35); scene.add(trash);
+    // 設備の名札(どこで何ができるか分かるように)
+    for (const k in STATIONS) {
+      const [x, z] = STATIONS[k].p, name = STATIONS[k].name.replace(/\(.*\)/, ''), sub = k === 'soupA' ? 'あっさり' : k === 'soupK' ? 'こってり' : k === 'trash' || k === 'sink' ? '(捨てる)' : '';
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTex(sub ? [name, sub] : [name], 256, 96, k === 'trash' ? '#5a1d1d' : '#1e2a33', '#ffffff', 'bold 30px sans-serif'), transparent: true, opacity: .9 }));
+      sp.position.set(x, 1.62, z + (z < 0 ? -.15 : z > 1.9 ? .15 : 0)); sp.scale.set(.42, .16, 1); scene.add(sp);
+    }
     // 湯気
     const steam = [], sTex = steamTex();
     for (let k = 0; k < 18; k++) {
@@ -3677,15 +3737,15 @@ const T3 = (() => {
     // 伝票レール(注文済みの席)
     const orders = s.se.map((se, i) => ({ se, i })).filter(({ se }) => (se.st === 'wait' || se.st === 'kaewait') && se.o);
     orders.slice(0, 5).forEach(({ se, i }, k) => {
-      const x0 = 8 * dpr, y0 = 44 * dpr + k * 46 * dpr, w = Math.min(W * .42, 300 * dpr), h = 40 * dpr;
+      const x0 = 8 * dpr, y0 = 44 * dpr + k * 46 * dpr, w = Math.min(Math.max(W * .42, Math.min(W - 16 * dpr, 250 * dpr)), 320 * dpr), h = 40 * dpr;
       ctx.fillStyle = '#f6efdc'; rrect(x0, y0, w, h, 6 * dpr); ctx.fill();
       ctx.fillStyle = '#8b1a1a'; ctx.fillRect(x0, y0, 5 * dpr, h);
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#3a1a10';
       ctx.font = `bold ${12 * dpr}px sans-serif`;
       const owner = rule === 'vs' && se.ow != null ? ` (${(s.pl.find(p => p.id === se.ow) || {}).n || '?'})` : '';
-      ctx.fillText(`${NS - i}番 ${CTYPES[se.ty] ? CTYPES[se.ty].name : ''}${owner}${se.st === 'kaewait' ? ' 【替玉】' : ''}`, x0 + 10 * dpr, y0 + 12 * dpr);
+      ctx.fillText(`${NS - i}番 ${CTYPES[se.ty] ? CTYPES[se.ty].name : ''}${owner}${se.st === 'kaewait' ? ' 【替玉】' : ''}`, x0 + 10 * dpr, y0 + 12 * dpr, w - 70 * dpr);  // 枠からはみ出さないよう最大幅を指定
       ctx.font = `${11 * dpr}px sans-serif`;
-      ctx.fillText(se.st === 'kaewait' ? `麺だけ・${MEN[se.o.men]}` : orderText(se.o), x0 + 10 * dpr, y0 + 28 * dpr);
+      ctx.fillText(se.st === 'kaewait' ? `麺だけ・${MEN[se.o.men]}` : orderText(se.o), x0 + 10 * dpr, y0 + 28 * dpr, w - 18 * dpr);
       bar(x0 + w - 50 * dpr, y0 + 8 * dpr, 42 * dpr, 6 * dpr, se.pat, se.pat > .5 ? '#2e7d32' : se.pat > .25 ? '#ff8f00' : '#c62828');
     });
     // 上部: 時間・売上
@@ -3708,6 +3768,579 @@ const T3 = (() => {
       const col = f.k === 'angry' || f.k === 'nope' ? '#ff5252' : f.k === 'serve' || f.k === 'goal' ? '#ffcf40' : f.k === 'relax' ? '#4fc3ff' : '#fff';
       label(f.txt, sc[0], sc[1] - (1.5 - f.t) * 26 * dpr, 14 * dpr, col, '#000');
     }
+    countdown(s, W, H);
+  }
+})();
+
+// =====================================================================
+// モード: ぬりぬりバトル 3D (スプラトゥーン風 TPS のナワバリバトル)
+// マップは 1m グリッドの高さマップ(上半分を作って 180° 回転でコピー)。塗りは 0.5m グリッド。
+// 移動はクライアント権威(重力・段差込み)。弾・ボム・塗り・ダメージはホストが処理する。
+// 塗りはスナップショットに差分 pd ([index, team, ...]) で載せ、数秒ごとに全体 pf を送る。
+// =====================================================================
+(() => {
+  const MW = 32, MD = 44, PR = 2, PW = MW * PR, PD = MD * PR;
+  // 高さ: . 床 / a b 坂(段差) / 1 台 / c d 坂 / 2 高台(リスポーン) / w 遮蔽物 / # 外壁
+  const HT = { '.': 0, a: .27, b: .53, '1': .8, c: 1.07, d: 1.33, '2': 1.6, w: 1.5, '#': 4 };
+  const MAP = (() => {
+    const g = Array.from({ length: MD }, () => Array(MW).fill('.'));
+    const fill = (x0, z0, x1, z1, ch) => { for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) g[z][x] = ch; };
+    fill(9, 1, 22, 5, '2');                                                   // 自陣の高台
+    ['d', 'c', '1', 'b', 'a'].forEach((ch, k) => fill(13, 6 + k, 18, 6 + k, ch));  // 高台からの坂
+    fill(2, 10, 7, 16, '1'); fill(8, 12, 8, 14, 'b'); fill(9, 12, 9, 14, 'a');     // 左の台
+    fill(24, 10, 29, 16, '1'); fill(23, 12, 23, 14, 'b'); fill(22, 12, 22, 14, 'a'); // 右の台
+    fill(12, 19, 19, 21, '1'); fill(14, 18, 17, 18, 'b'); fill(14, 17, 17, 17, 'a'); // 中央の台
+    fill(10, 14, 11, 15, 'w'); fill(20, 14, 21, 15, 'w'); fill(5, 19, 6, 20, 'w'); fill(25, 19, 26, 20, 'w');
+    for (let z = 0; z < MD / 2; z++) for (let x = 0; x < MW; x++) g[MD - 1 - z][MW - 1 - x] = g[z][x];
+    for (let z = 0; z < MD; z++) g[z][0] = g[z][MW - 1] = '#';
+    for (let x = 0; x < MW; x++) g[0][x] = g[MD - 1][x] = '#';
+    return g.map(r => r.join(''));
+  })();
+  const TEAMS = [{ name: 'オレンジ', color: '#ff7a1a', rgb: [255, 122, 26] }, { name: 'ブルー', color: '#2f6bff', rgb: [47, 107, 255] }];
+  const R = .35, STEP = .33, GRAV = 22, JUMP = 7.2, TIME = 180, RESPAWN = 4;
+  const RUN = 5.2, RUN_SHOOT = 3.6, ENEMY_SLOW = 1.8, SWIM = 9, SQUID_DRY = 3;
+  const FIRE = .085, COST = 1.1, BV = 24, DMG = 36, BOMB_COST = 65;
+  const LOOK = .0035;
+
+  const hAt = (x, z) => { const cx = Math.floor(x), cz = Math.floor(z); return cx < 0 || cz < 0 || cx >= MW || cz >= MD ? 9 : HT[MAP[cz][cx]]; };
+  const pIdx = (x, z) => { const px = Math.floor(x * PR), pz = Math.floor(z * PR); return px < 0 || pz < 0 || px >= PW || pz >= PD ? -1 : pz * PW + px; };
+  const PAINTABLE = new Uint8Array(PW * PD);
+  for (let pz = 0; pz < PD; pz++) for (let px = 0; px < PW; px++) { const ch = MAP[Math.floor(pz / PR)][Math.floor(px / PR)]; PAINTABLE[pz * PW + px] = ch === '#' || ch === 'w' ? 0 : 1; }
+  const SPAWNS = [[12.5, 2.5], [15.5, 2.5], [18.5, 2.5], [15.5, 4.2]];
+  const spawnOf = (team, k) => { const [x, z] = SPAWNS[k % SPAWNS.length]; return team ? [MW - x, MD - z, Math.PI] : [x, z, 0]; };
+
+  // ---------- 物理(ホストの CPU とクライアントで共通) ----------
+  const RING = [[R, 0], [-R, 0], [0, R], [0, -R], [R * .7, R * .7], [-R * .7, R * .7], [R * .7, -R * .7], [-R * .7, -R * .7]];
+  const blocked = (x, z, y) => RING.some(([ox, oz]) => hAt(x + ox, z + oz) > y + STEP);
+  function groundAt(x, z, y) {
+    let g = 0;
+    for (const [ox, oz] of [[0, 0], ...RING.slice(0, 4).map(([a, b]) => [a * .7, b * .7])]) { const h = hAt(x + ox, z + oz); if (h <= y + STEP && h > g) g = h; }
+    return g;
+  }
+  function moveBody(p, vx, vz, dt) {
+    const nx = p.x + vx * dt; if (!blocked(nx, p.z, p.y)) p.x = nx;
+    const nz = p.z + vz * dt; if (!blocked(p.x, nz, p.y)) p.z = nz;
+    p.vy -= GRAV * dt; p.y += p.vy * dt;
+    const g = groundAt(p.x, p.z, p.y);
+    if (p.y <= g) { p.y = g; p.vy = 0; p.ground = true; } else p.ground = p.y - g < .03;
+  }
+  const aimDir = (yw, pt) => [Math.sin(yw) * Math.cos(pt), Math.sin(pt), Math.cos(yw) * Math.cos(pt)];
+  // 目線どうしが壁でさえぎられていないか
+  function los(a, b) {
+    for (let k = 1; k < 12; k++) {
+      const t = k / 12, x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t, y = a.y + 1.2 + (b.y - a.y) * t;
+      if (hAt(x, z) > y) return false;
+    }
+    return true;
+  }
+
+  // ---------- ホスト側 ----------
+  const ev = (S, o) => { S.ev.push({ id: S.evId++, ...o }); if (S.ev.length > 40) S.ev.shift(); };
+  function paint(S, x, z, r, team) {
+    const x0 = Math.max(0, Math.floor((x - r) * PR)), x1 = Math.min(PW - 1, Math.floor((x + r) * PR));
+    const z0 = Math.max(0, Math.floor((z - r) * PR)), z1 = Math.min(PD - 1, Math.floor((z + r) * PR));
+    for (let pz = z0; pz <= z1; pz++) for (let px = x0; px <= x1; px++) {
+      const cx = (px + .5) / PR - x, cz = (pz + .5) / PR - z;
+      if (cx * cx + cz * cz > r * r) continue;
+      const i = pz * PW + px;
+      if (!PAINTABLE[i] || S.paint[i] === team) continue;
+      S.paint[i] = team; S.pd.push(i, team);
+    }
+  }
+  function respawn(S, p) {
+    const k = S.players.filter(q => q.team === p.team).indexOf(p), [x, z, yw] = spawnOf(p.team, Math.max(0, k));
+    Object.assign(p, { x, y: HT['2'], z, yw, pt: 0, vy: 0, dead: false, dmg: 0, ink: 100, sp: p.sp + 1, sq: false, sf: false, fireT: 0, hurtT: 0 });
+  }
+  function splat(S, q, killer) {
+    q.dead = true; q.rt = RESPAWN; q.deaths++; q.sq = q.sf = false;
+    if (killer) killer.kills++;
+    paint(S, q.x, q.z, 1.8, killer ? killer.team : 1 - q.team);
+    ev(S, { k: 'splat', a: killer ? killer.id : -1, v: q.id, x: r2(q.x), y: r2(q.y + 1), z: r2(q.z), txt: `${killer ? killer.name : '?'} が ${q.name} をたおした!` });
+  }
+  function damage(S, q, amount, owner) {
+    if (q.dead) return;
+    q.dmg += amount; q.hurtT = 1;
+    if (q.dmg >= 100) splat(S, q, S.players.find(o => o.id === owner));
+  }
+  function cellTeam(S, x, z) { const i = pIdx(x, z); return i < 0 ? -1 : S.paint[i]; }
+  // CPU: 見えている敵を撃つ。いなければ相手陣地のほうへ塗り進む。インクが減ったら自分の色で潜って回復
+  function cpuThink(S, p, dt) {
+    let tgt = null, best = 13;
+    for (const q of S.players) {
+      if (q.team === p.team || q.dead || q.sq) continue;
+      const d = Math.hypot(q.x - p.x, q.z - p.z);
+      if (d < best && los(p, q)) { best = d; tgt = q; }
+    }
+    if (p.ink < 12) p.refill = true; else if (p.ink > 92) p.refill = false;
+    const here = cellTeam(S, p.x, p.z);
+    p.aiT = (p.aiT || 0) - dt;
+    if (p.refill && here === p.team) return { sh: false, sq: true, mx: 0, mz: 0, yw: p.yw, pt: p.pt };
+    if (p.refill) { const [x, z] = spawnOf(p.team, 0); p.goal = { x, z }; }
+    else if (!p.goal || p.aiT <= 0 || Math.hypot(p.goal.x - p.x, p.goal.z - p.z) < 1.2) {
+      p.goal = { x: 2 + Math.random() * (MW - 4), z: p.team ? 4 + Math.random() * 32 : 8 + Math.random() * 32 };
+      p.aiT = 3 + Math.random() * 3;
+    }
+    let gx = p.goal.x - p.x, gz = p.goal.z - p.z;
+    if (tgt) { // 相手と一定の距離を保ちつつ回り込む
+      const dx = tgt.x - p.x, dz = tgt.z - p.z, d = Math.hypot(dx, dz) || 1;
+      const side = (p.id % 2 ? 1 : -1);
+      gx = dx / d * (d - 6) + -dz / d * side * 3; gz = dz / d * (d - 6) + dx / d * side * 3;
+    }
+    const gl = Math.hypot(gx, gz) || 1;
+    let yw, pt;
+    if (tgt) {
+      const dx = tgt.x - p.x, dz = tgt.z - p.z, d = Math.hypot(dx, dz);
+      // CPU は少しブレる(人間が勝てるくらいに)
+      p.aimJ = (p.aimJ || 0) * .9 + (Math.random() - .5) * .12;
+      yw = Math.atan2(dx, dz) + p.aimJ * 2.5;
+      pt = Math.atan2(tgt.y + .8 - (p.y + 1.2), d) + d * .012 + (Math.random() - .5) * .08;
+    } else { yw = Math.atan2(gx, gz); pt = -.28; }
+    let dyw = yw - p.yw; while (dyw > Math.PI) dyw -= Math.PI * 2; while (dyw < -Math.PI) dyw += Math.PI * 2;
+    return { sh: !p.refill && p.ink > COST, sq: false, mx: gx / gl, mz: gz / gl, yw: p.yw + clamp(dyw, -6 * dt, 6 * dt), pt,
+      bomb: tgt && best > 5 && p.ink > 90 && Math.random() < .01 };
+  }
+  function throwBomb(S, p) {
+    const [dx, dy, dz] = aimDir(p.yw, p.pt + .35);
+    S.bombs.push({ x: p.x, y: p.y + 1.3, z: p.z, vx: dx * 10, vy: dy * 10 + 2, vz: dz * 10, team: p.team, owner: p.id, fuse: -1 });
+    p.ink -= BOMB_COST; ev(S, { k: 'throw' });
+  }
+
+  MODES.splat3d = {
+    three: true,
+    pointerLock: () => true,
+    create(players) {
+      const n = Math.max(4, players.length + players.length % 2);
+      const S = { players: [], paint: new Int8Array(PW * PD).fill(-1), pd: [], pfT: 0, bullets: [], bombs: [], ev: [], evId: 1,
+        phase: 'count', count: 3.5, time: TIME };
+      fillCpus(players, n).forEach((p, i) => this.addPlayer(S, p, i % 2));
+      for (const t of [0, 1]) for (let k = 0; k < 4; k++) { const [x, z] = spawnOf(t, k); paint(S, x, z, 1.4, t); }
+      return S;
+    },
+    addPlayer(S, p, team) {
+      if (team === undefined) { const c0 = S.players.filter(q => q.team === 0).length; team = c0 <= S.players.length - c0 ? 0 : 1; }
+      const q = { id: p.id, name: p.name, color: p.color, cpu: !!p.cpu, team, kills: 0, deaths: 0, sp: 0, lb: undefined };
+      S.players.push(q); respawn(S, q);
+    },
+    removePlayer(S, id) { S.players = S.players.filter(p => p.id !== id); },
+    initData() { return {}; },
+    step(S, dt, inputs) {
+      if (S.phase === 'over') return;
+      if (S.phase === 'count') { S.count -= dt; if (S.count <= 0) S.phase = 'play'; }
+      const play = S.phase === 'play';
+      if (play) { S.time -= dt; if (S.time <= 0) { S.phase = 'over'; return; } }
+      for (const p of S.players) {
+        if (p.dead) { if (play && (p.rt -= dt) <= 0) { respawn(S, p); ev(S, { k: 'respawn', v: p.id }); } continue; }
+        let c = null;
+        if (p.cpu) {
+          if (!play) continue;
+          c = cpuThink(S, p, dt);
+          const here = cellTeam(S, p.x, p.z), ox = p.x, oz = p.z;
+          const sp = c.sq ? (here === p.team ? SWIM : SQUID_DRY) : here === 1 - p.team ? ENEMY_SLOW : c.sh ? RUN_SHOOT : RUN;
+          moveBody(p, c.mx * sp, c.mz * sp, dt);
+          if (p.ground && Math.hypot(p.x - ox, p.z - oz) < sp * dt * .3 && (c.mx || c.mz)) p.vy = JUMP;  // 引っかかったらジャンプ
+          p.yw = c.yw; p.pt = c.pt;
+          if (c.bomb && p.ink >= BOMB_COST) throwBomb(S, p);
+        } else {
+          const inp = inputs[p.id];
+          if (!inp || inp.sp !== p.sp) continue;
+          Object.assign(p, { x: inp.x, y: inp.y, z: inp.z, yw: inp.yw, pt: inp.pt });
+          c = { sh: !!inp.sh, sq: !!inp.sq };
+          if (p.lb === undefined) p.lb = inp.b;
+          if (inp.b !== p.lb) { p.lb = inp.b; if (play && p.ink >= BOMB_COST) throwBomb(S, p); }
+        }
+        const here = cellTeam(S, p.x, p.z), onGround = p.y - groundAt(p.x, p.z, p.y) < .1;
+        p.sf = !!c.sq; p.sq = p.sf && here === p.team && onGround;
+        p.fireT -= dt; p.hurtT -= dt;
+        p.ink = Math.min(100, p.ink + (p.sq ? 45 : p.fireT < -.6 ? 7 : 0) * dt);
+        if (p.hurtT <= 0) p.dmg = Math.max(0, p.dmg - 60 * dt);
+        if (here === 1 - p.team && onGround && p.dmg < 40) { p.dmg += 14 * dt; p.hurtT = Math.max(p.hurtT, .3); }  // 相手のインクでじわじわダメージ
+        if (play && c.sh && !p.sf && p.fireT <= 0 && p.ink >= COST) {
+          p.fireT = FIRE; p.ink -= COST;
+          const yw = p.yw + (Math.random() - .5) * .12, pt = p.pt + (Math.random() - .5) * .05;
+          const [dx, dy, dz] = aimDir(yw, pt + .03), rx = -Math.cos(p.yw), rz = Math.sin(p.yw);
+          S.bullets.push({ x: p.x + dx * .4 + rx * .2, y: p.y + 1.2, z: p.z + dz * .4 + rz * .2, vx: dx * BV, vy: dy * BV, vz: dz * BV, team: p.team, owner: p.id, age: 0 });
+        }
+      }
+      // 弾: まっすぐ飛んでから重力で落ちる。床に当たると塗る。敵に当たるとダメージ
+      S.bullets = S.bullets.filter(b => {
+        for (let k = 0; k < 3; k++) {
+          const h = dt / 3, py = b.y;
+          b.age += h; b.vy -= (b.age > .16 ? 32 : 3) * h;
+          b.x += b.vx * h; b.y += b.vy * h; b.z += b.vz * h;
+          for (const q of S.players) {
+            if (q.team === b.team || q.dead) continue;
+            const top = q.sq ? .45 : 1.4;
+            if (Math.hypot(q.x - b.x, q.z - b.z) < .5 && b.y > q.y - .1 && b.y < q.y + top) {
+              damage(S, q, DMG, b.owner); ev(S, { k: 'hit', o: b.owner }); paint(S, b.x, b.z, .4, b.team); return false;
+            }
+          }
+          const g = hAt(b.x, b.z);
+          if (b.y <= g) { if (g - py < .3) paint(S, b.x, b.z, .95, b.team); return false; }
+          if (Math.random() < .05 && b.y - g < 2.5) paint(S, b.x, b.z, .3, b.team);  // 飛びながら少したれる
+        }
+        return b.age < 1.6 && b.x > 0 && b.z > 0 && b.x < MW && b.z < MD;
+      });
+      // ボム: 着地して少ししたら爆発
+      S.bombs = S.bombs.filter(b => {
+        if (b.fuse < 0) {
+          b.vy -= 20 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+          const g = hAt(b.x, b.z);
+          if (b.y <= g) { if (g - b.y > .5) { b.x -= b.vx * dt; b.z -= b.vz * dt; } b.y = Math.max(g, hAt(b.x, b.z)); b.fuse = .9; }
+          return b.y > -5;
+        }
+        if ((b.fuse -= dt) > 0) return true;
+        paint(S, b.x, b.z, 2.4, b.team);
+        for (const q of S.players) {
+          if (q.team === b.team || q.dead) continue;
+          const d = Math.hypot(q.x - b.x, q.y + .6 - b.y, q.z - b.z);
+          if (d < 2.4) damage(S, q, d < 1.2 ? 100 : 35, b.owner);
+        }
+        ev(S, { k: 'boom', x: r2(b.x), y: r2(b.y), z: r2(b.z) });
+        return false;
+      });
+    },
+    snapshot(S) {
+      const s = { ph: S.phase, cnt: S.count, tm: S.time, ev: S.ev, pd: S.pd.splice(0),
+        bu: S.bullets.map(b => [r2(b.x), r2(b.y), r2(b.z), b.team]),
+        bo: S.bombs.map(b => [r2(b.x), r2(b.y), r2(b.z), b.team, b.fuse >= 0 ? 1 : 0]),
+        pl: S.players.map(p => ({ id: p.id, n: p.name, c: p.color, tm: p.team, x: r2(p.x), y: r2(p.y), z: r2(p.z), yw: r2(p.yw), pt: r2(p.pt),
+          dd: p.dead ? 1 : 0, rt: p.dead ? r2(p.rt) : 0, sp: p.sp, sq: p.sq ? 1 : 0, sf: p.sf ? 1 : 0, ink: Math.round(p.ink), hp: Math.round(p.dmg), k: p.kills, d: p.deaths })) };
+      // 数秒ごとに塗り全体も送る(途中参加・取りこぼし対策)
+      if ((S.pfT -= 1) <= 0) { S.pfT = 90; s.pf = Array.from(S.paint, v => v < 0 ? '.' : v).join(''); }
+      return s;
+    },
+    isOver(S) { return S.phase === 'over'; },
+    result(S) {
+      const c = [0, 0]; for (const v of S.paint) if (v >= 0) c[v]++;
+      const tot = (c[0] + c[1]) || 1, pct = c.map(v => Math.round(v / tot * 1000) / 10);
+      const w = c[0] === c[1] ? -1 : c[0] > c[1] ? 0 : 1;
+      return { title: w < 0 ? '引き分け!' : `${TEAMS[w].name}チームの勝ち!`,
+        stats: [[TEAMS[0].name, pct[0] + '%'], [TEAMS[1].name, pct[1] + '%']],
+        rank: [...S.players].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths).map(p => [p.name, `${p.kills}キル / ${p.deaths}デス`, TEAMS[p.team].color]) };
+    },
+    // 塗りの差分はスナップショットを受け取るたびに反映する(フレームの間に複数届いても取りこぼさない)
+    onSnap(app, s) {
+      if (!app.paint) { app.paint = new Int8Array(PW * PD).fill(-1); }
+      if (s.pf) for (let i = 0; i < s.pf.length; i++) { const ch = s.pf[i]; app.paint[i] = ch === '.' ? -1 : +ch; }
+      if (s.pd) for (let i = 0; i < s.pd.length; i += 2) app.paint[s.pd[i]] = s.pd[i + 1];
+      if (s.pf || (s.pd && s.pd.length)) app.paintDirty = true;
+    },
+
+    // ---------- クライアント ----------
+    clientFrame(app, inp, dt) {
+      const s = app.snap, mine = s.pl.find(p => p.id === app.myId);
+      setTouchLook(true);
+      setControls('<span>移動 <span class="k">W</span><span class="k">A</span><span class="k">S</span><span class="k">D</span></span>' +
+        '<span>視点 マウス(画面クリック) / <span class="k">←↑↓→</span></span>' +
+        '<span>撃つ 左クリック / <span class="k">J</span></span><span>イカ <span class="k">Shift</span> / <span class="k">K</span></span>' +
+        '<span>ジャンプ <span class="k">Space</span></span><span>ボム 右クリック / <span class="k">E</span></span>', ['イカ', 'うつ', 'ジャンプ', 'ボム']);
+      const f = 1 - Math.exp(-14 * dt);
+      for (const o of s.pl) {
+        const rp = app.rp[o.id];
+        if (!rp || Math.hypot(o.x - rp.x, o.z - rp.z) > 3) { app.rp[o.id] = { x: o.x, y: o.y, z: o.z, yw: o.yw, mv: 0 }; continue; }
+        const ox = rp.x, oz = rp.z;
+        rp.x += (o.x - rp.x) * f; rp.y += (o.y - rp.y) * f; rp.z += (o.z - rp.z) * f;
+        let dy = o.yw - rp.yw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2; rp.yw += dy * f;
+        rp.mv = Math.hypot(rp.x - ox, rp.z - oz) / Math.max(dt, .001);
+      }
+      // イベント: ヒットマーカー・キル・爆発
+      if (app.lastEv < 0) app.lastEv = s.ev.length ? s.ev[s.ev.length - 1].id : 0;
+      for (const e of s.ev) {
+        if (e.id <= app.lastEv) continue;
+        app.lastEv = e.id;
+        if (e.k === 'hit' && e.o === app.myId) { app.hitT = .25; sfx('hit'); }
+        else if (e.k === 'splat') {
+          app.feed = (app.feed || []).concat([{ txt: e.txt, t: 4, me: e.a === app.myId || e.v === app.myId }]).slice(-4);
+          if (e.a === app.myId || e.v === app.myId) sfx('splat');
+          (app.bursts = app.bursts || []).push({ x: e.x, y: e.y, z: e.z, t: .5, team: (s.pl.find(p => p.id === e.a) || {}).tm });
+        } else if (e.k === 'boom') { sfx('boom'); (app.bursts = app.bursts || []).push({ x: e.x, y: e.y, z: e.z, t: .5, big: true }); }
+        else if (e.k === 'respawn' && e.v === app.myId) sfx('respawn');
+      }
+      if (!mine) { app.me = null; return; }
+      if (!app.me || app.me.sp !== mine.sp) {
+        app.me = { x: mine.x, y: mine.y, z: mine.z, yw: mine.yw, pt: 0, vy: 0, ground: true, sp: mine.sp, b: app.me ? app.me.b : 0, mv: 0, fireT: 0, lx1: Input.x1, lx2: Input.x2, lj: true, lbm: true };
+      }
+      const me = app.me, K = Input.keys, k = c => K.has(c) ? 1 : 0;
+      const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(Boolean) : null, gb = i => !!(gp && gp.buttons[i] && gp.buttons[i].pressed);
+      // 視点
+      const look = Look.take();
+      me.yw -= look.dx * LOOK + (k('ArrowRight') - k('ArrowLeft')) * 2.4 * dt;
+      me.pt -= look.dy * LOOK + (k('ArrowDown') - k('ArrowUp')) * 1.6 * dt;
+      if (gp) { if (Math.abs(gp.axes[2] || 0) > .15) me.yw -= gp.axes[2] * 2.8 * dt; if (Math.abs(gp.axes[3] || 0) > .15) me.pt -= gp.axes[3] * 2 * dt; }
+      me.pt = clamp(me.pt, -1.0, .9);
+      // ボタン
+      const shoot = !!(Look.mb & 1) || !!k('KeyJ') || Input.touch.a || gb(7);
+      const squid = !!(k('ShiftLeft') || k('ShiftRight') || k('KeyK')) || Input.touch.g || gb(6);
+      const jumpNow = !!k('Space') || gb(0), bombNow = !!(Look.mb & 2) || !!k('KeyE') || gb(5);
+      const jumpP = jumpNow && !me.lj || Input.x1 !== me.lx1, bombP = bombNow && !me.lbm || Input.x2 !== me.lx2;
+      me.lj = jumpNow; me.lbm = bombNow; me.lx1 = Input.x1; me.lx2 = Input.x2;
+      me.sh = shoot && !squid; me.sq = squid;
+      me.mv = 0;
+      if (mine.dd || s.ph === 'over') return;
+      if (s.ph === 'play' && bombP) me.b++;
+      // 移動(カメラの向き基準)
+      let fwd = -inp.my, strafe = inp.mx;
+      if (!isTouch && (k('KeyW') || k('KeyS') || k('KeyA') || k('KeyD'))) { fwd = k('KeyW') - k('KeyS'); strafe = k('KeyD') - k('KeyA'); }
+      const ml = Math.hypot(fwd, strafe); if (ml > 1) { fwd /= ml; strafe /= ml; }
+      const cell = app.paint ? app.paint[pIdx(me.x, me.z)] : -1, own = cell === mine.tm, enemy = cell === 1 - mine.tm;
+      const sp = s.ph !== 'play' ? 0 : squid ? (own && me.ground ? SWIM : enemy ? ENEMY_SLOW * .7 : SQUID_DRY) : enemy ? ENEMY_SLOW : shoot ? RUN_SHOOT : RUN;
+      const sn = Math.sin(me.yw), cs = Math.cos(me.yw), air = me.ground ? 1 : .75;
+      const vx = (sn * fwd - cs * strafe) * sp * air, vz = (cs * fwd + sn * strafe) * sp * air;
+      if (jumpP && me.ground && s.ph === 'play') me.vy = JUMP;
+      moveBody(me, vx, vz, dt);
+      me.mv = Math.hypot(vx, vz);
+      // 撃っている音(自分だけ)
+      me.fireT -= dt;
+      if (me.sh && mine.ink > COST && s.ph === 'play' && me.fireT <= 0) { me.fireT = FIRE * 1.6; sfx('ink'); }
+      if (!isTouch) setHint(Look.locked() ? 'Esc でマウス操作を解除' : '画面をクリックするとマウスで狙える');
+    },
+    inputMsg(app) {
+      const me = app.me; if (!me) return null;
+      return { x: r2(me.x), y: r2(me.y), z: r2(me.z), yw: r2(me.yw), pt: r2(me.pt), sp: me.sp, sh: me.sh ? 1 : 0, sq: me.sq ? 1 : 0, b: me.b };
+    },
+    render(app, dt, W, H) {
+      const s = app.snap;
+      if (!T3.ensure()) { ctx.fillStyle = '#1d1b2e'; ctx.fillRect(0, 0, W, H); label('3Dを読み込み中…', W / 2, H / 2, 24 * dpr, '#fff'); return; }
+      if (!s) { label('接続中…', W / 2, H / 2, 30 * dpr, '#fff'); return; }
+      draw(app, s, dt, W, H);
+    },
+  };
+
+  // ---------- three.js ----------
+  let G = null;
+  const STAND = {
+    head: [0, 1.48, .02], neckB: [0, 1.32, 0], pelvis: [0, .86, 0], shR: [.17, 1.29, 0], shL: [-.17, 1.29, 0],
+    elR: [.21, 1.05, 0], elL: [-.21, 1.05, 0], haR: [.22, .84, .03], haL: [-.22, .84, .03],
+    hipR: [.09, .83, 0], hipL: [-.09, .83, 0], knR: [.09, .45, .02], knL: [-.09, .45, .02],
+    anR: [.09, .07, -.02], anL: [-.09, .07, -.02], toR: [.09, .03, .12], toL: [-.09, .03, .12] };
+  function runPose(ph, aiming, pt) {
+    const P = { ...STAND };
+    if (ph !== null) for (const [s, k] of [['R', 0], ['L', 1]]) {
+      const sw = Math.sin(ph + k * Math.PI);
+      P['kn' + s] = [STAND['kn' + s][0], .45 + Math.max(0, sw) * .06, .02 + sw * .2];
+      P['an' + s] = [STAND['an' + s][0], .07 + Math.max(0, sw) * .12, -.02 + sw * .3];
+      P['to' + s] = [STAND['to' + s][0], .03 + Math.max(0, sw) * .12, .12 + sw * .3];
+      P['ha' + s] = [STAND['ha' + s][0], .84, .03 - sw * .18];
+    }
+    if (aiming) {
+      // 両手で銃を構える(上下の向きで腕も上下)
+      const yy = 1.15 + Math.sin(pt) * .35;
+      P.elR = [.17, 1.08, .16]; P.haR = [.07, yy, .4]; P.elL = [-.12, 1.06, .2]; P.haL = [-.02, yy - .02, .38];
+      P.hx = -pt * .6;
+    }
+    return P;
+  }
+  function makeInkling(team, color) {
+    const g = new THREE.Group(), tc = TEAMS[team].color;
+    const body = T3.makeHuman(g, { ...STAND }, { skin: '#f3c9a8', top: '#f4f4f4', bottom: '#2a2a2a', shoe: tc, hair: tc, style: 'girl', torsoR: .1,
+      sleeves: 'short', legs: 'shorts', eyes: 'open', headRot: [0, 0] });
+    // 背中のインクタンク
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .3, 12), T3.std(tc, .3, { transparent: true, opacity: .85 }));
+    tank.position.set(0, 1.1, -.15); g.add(tank);
+    // 銃
+    const gun = new THREE.Group();
+    T3.box(gun, [0, 0, .12], [.07, .09, .32], T3.std('#333', .4));
+    T3.box(gun, [0, .05, .05], [.05, .05, .12], T3.std(tc, .4));
+    g.add(gun);
+    // プレイヤー色のリング(誰か分かるように)
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.32, .025, 6, 24), new THREE.MeshBasicMaterial({ color }));
+    ring.rotation.x = Math.PI / 2; ring.position.y = .03; g.add(ring);
+    // イカの姿
+    const squid = new THREE.Group();
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(.2, .55, 14), T3.std(tc, .3, { transparent: true, opacity: 1 }));
+    cone.rotation.x = Math.PI / 2; cone.position.set(0, .18, .05); squid.add(cone);
+    for (const sd of [-1, 1]) { T3.ball(squid, [sd * .08, .25, .2], .045, T3.std('#fff', .3)); T3.ball(squid, [sd * .08, .25, .235], .022, T3.std('#111', .3)); }
+    for (const sd of [-1, 0, 1]) { const t = new THREE.Mesh(new THREE.CapsuleGeometry(.035, .22, 3, 6), cone.material); t.rotation.x = Math.PI / 2; t.position.set(sd * .08, .12, -.3); squid.add(t); }
+    g.add(squid);
+    const ripple = new THREE.Mesh(new THREE.RingGeometry(.25, .4, 20), new THREE.MeshBasicMaterial({ color: tc, transparent: true, opacity: .35, depthWrite: false }));
+    ripple.rotation.x = -Math.PI / 2; ripple.position.y = .03; g.add(ripple);
+    G.scene.add(g);
+    return { g, body, gun, squid, cone, ripple, tank, team };
+  }
+  function build(app) {
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#8fd3ff');
+    scene.fog = new THREE.Fog('#8fd3ff', 35, 80);
+    const camera = new THREE.PerspectiveCamera(72, 1, .05, 150);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x6a6688, .7));
+    const sun = new THREE.DirectionalLight(0xffffff, .55); sun.position.set(20, 30, 8); scene.add(sun);
+    // 地形: 上面(塗りテクスチャ)と側面
+    const tex = new THREE.DataTexture(new Uint8Array(PW * PD * 4), PW, PD, THREE.RGBAFormat);
+    tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
+    const top = { p: [], uv: [] }, side = { p: [], c: [] };
+    const quad = (arr, a, b, c, d) => arr.push(...a, ...b, ...c, ...a, ...c, ...d);
+    for (let z = 0; z < MD; z++) for (let x = 0; x < MW; x++) {
+      const h = HT[MAP[z][x]];
+      quad(top.p, [x, h, z], [x, h, z + 1], [x + 1, h, z + 1], [x + 1, h, z]);
+      const u0 = x / MW, u1 = (x + 1) / MW, v0 = z / MD, v1 = (z + 1) / MD;
+      top.uv.push(u0, v0, u0, v1, u1, v1, u0, v0, u1, v1, u1, v0);
+      const col = MAP[z][x] === '#' ? [.36, .35, .45] : MAP[z][x] === 'w' ? [.62, .6, .74] : [.55, .53, .66];
+      for (const [nx, nz, a, b] of [[x - 1, z, [x, 0, z], [x, 0, z + 1]], [x + 1, z, [x + 1, 0, z + 1], [x + 1, 0, z]], [x, z - 1, [x + 1, 0, z], [x, 0, z]], [x, z + 1, [x, 0, z + 1], [x + 1, 0, z + 1]]]) {
+        const nh = nx < 0 || nz < 0 || nx >= MW || nz >= MD ? 0 : HT[MAP[nz][nx]];
+        if (nh >= h) continue;
+        quad(side.p, [a[0], nh, a[2]], [b[0], nh, b[2]], [b[0], h, b[2]], [a[0], h, a[2]]);
+        for (let k = 0; k < 6; k++) side.c.push(...col);
+      }
+    }
+    const geo = (p, extra) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); for (const k in extra) g.setAttribute(k, extra[k]); g.computeVertexNormals(); return g; };
+    scene.add(new THREE.Mesh(geo(top.p, { uv: new THREE.Float32BufferAttribute(top.uv, 2) }), T3.std('#ffffff', .45, { map: tex, side: THREE.DoubleSide })));
+    scene.add(new THREE.Mesh(geo(side.p, { color: new THREE.Float32BufferAttribute(side.c, 3) }), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .8, side: THREE.DoubleSide })));
+    // リスポーン地点のマーク
+    for (const t of [0, 1]) {
+      const [x, z] = spawnOf(t, 0), pad = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, .06, 32), T3.std(TEAMS[t].color, .3, { emissive: TEAMS[t].color, emissiveIntensity: .3 }));
+      pad.position.set(x + (t ? 0 : 3), HT['2'] + .03, z + (t ? -1 : 1)); scene.add(pad);
+    }
+    // 弾(チームごとのインスタンス)・ボム
+    const bullets = [0, 1].map(t => { const m = new THREE.InstancedMesh(new THREE.SphereGeometry(.09, 8, 6), T3.std(TEAMS[t].color, .2, { emissive: TEAMS[t].color, emissiveIntensity: .35 }), 400); m.count = 0; m.frustumCulled = false; scene.add(m); return m; });
+    const bombs = Array.from({ length: 16 }, () => { const m = new THREE.Mesh(new THREE.SphereGeometry(.16, 12, 10), T3.std('#ffffff', .3)); m.visible = false; scene.add(m); return m; });
+    const burst = Array.from({ length: 10 }, () => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ transparent: true, opacity: .6, depthWrite: false })); m.visible = false; scene.add(m); return m; });
+    G = { scene, camera, tex, bullets, bombs, burst, ink: {}, init: app.init, camPos: null };
+    app.paintDirty = true;
+  }
+  function updateTex(app) {
+    const d = G.tex.image.data;
+    for (let pz = 0; pz < PD; pz++) for (let px = 0; px < PW; px++) {
+      const i = pz * PW + px, v = app.paint ? app.paint[i] : -1;
+      const c = !PAINTABLE[i] ? [92, 90, 116] : v >= 0 ? TEAMS[v].rgb : ((px >> 1) + (pz >> 1)) % 2 ? [178, 174, 196] : [166, 162, 186];
+      d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+    }
+    G.tex.needsUpdate = true;
+  }
+  function draw(app, s, dt, W, H) {
+    if (!G || G.init !== app.init) build(app);
+    if (app.paintDirty) { updateTex(app); app.paintDirty = false; }
+    const { scene, camera } = G, now = performance.now() / 1000, me = app.me, mine = s.pl.find(p => p.id === app.myId);
+    const renderer = T3.fit(camera, W, H), myTeam = mine ? mine.tm : 0;
+    // イカたち
+    const seen = new Set();
+    for (const p of s.pl) {
+      seen.add(p.id);
+      let o = G.ink[p.id];
+      if (!o || o.team !== p.tm) { if (o) scene.remove(o.g); o = G.ink[p.id] = makeInkling(p.tm, p.c); }
+      const isMe = p.id === app.myId && me, pos = isMe ? me : (app.rp[p.id] || p);
+      const sq = isMe ? me.sq && !mine.dd : p.sf, submerged = isMe ? (me.sq && app.paint && app.paint[pIdx(me.x, me.z)] === p.tm && me.ground) : p.sq;
+      o.g.visible = !p.dd;
+      if (p.dd) continue;
+      o.g.position.set(pos.x, pos.y, pos.z); o.g.rotation.y = pos.yw;
+      const moving = (isMe ? me.mv : pos.mv || 0) > .5;
+      const human = !sq;
+      o.body.torso.parent && o.g.children.forEach(c => { if (c !== o.squid && c !== o.ripple) c.visible = human; });
+      o.squid.visible = sq && (!submerged || p.tm === myTeam);
+      o.cone.material.opacity = submerged ? .35 : 1;
+      o.ripple.visible = submerged && (p.tm === myTeam || moving);
+      o.ripple.scale.setScalar(1 + .3 * Math.sin(now * 8));
+      if (human) {
+        const aiming = isMe ? me.sh : true, pt = isMe ? me.pt : p.pt;
+        const P = runPose(moving ? now * 11 : null, aiming, pt);
+        o.body.pose(P);
+        o.gun.position.set(P.haR[0] - .02, P.haR[1], P.haR[2] - .05); o.gun.rotation.x = -pt;
+      }
+    }
+    for (const id in G.ink) if (!seen.has(+id)) { scene.remove(G.ink[id].g); delete G.ink[id]; }
+    // 弾
+    const m = new THREE.Matrix4(), cnt = [0, 0];
+    for (const [x, y, z, t] of s.bu) { if (cnt[t] >= 400) continue; m.makeTranslation(x, y, z); G.bullets[t].setMatrixAt(cnt[t]++, m); }
+    G.bullets.forEach((b, t) => { b.count = cnt[t]; b.instanceMatrix.needsUpdate = true; });
+    G.bombs.forEach((b, k) => {
+      const d = s.bo[k]; b.visible = !!d;
+      if (!d) return;
+      b.position.set(d[0], d[1] + .16, d[2]);
+      b.material.color.set(d[4] && Math.sin(now * 30) > 0 ? '#ffffff' : TEAMS[d[3]].color);
+    });
+    // 爆発・キルのしぶき
+    app.bursts = (app.bursts || []).filter(b => (b.t -= dt) > 0);
+    G.burst.forEach((o, k) => {
+      const b = app.bursts[k]; o.visible = !!b; if (!b) return;
+      o.position.set(b.x, b.y, b.z); o.scale.setScalar((b.big ? 2.4 : 1.4) * (1 - b.t / .5) + .2);
+      o.material.color.set(b.team != null ? TEAMS[b.team].color : '#ffffff'); o.material.opacity = .6 * b.t / .5;
+    });
+    // カメラ: 肩越しの三人称。壁にめり込まないよう近づける
+    if (me && mine && !mine.dd) {
+      const head = me.sq ? .7 : 1.35, tgt = [me.x, me.y + head, me.z];
+      const fw = aimDir(me.yw, me.pt), rt = [-Math.cos(me.yw), 0, Math.sin(me.yw)];
+      let dist = 3;
+      for (let d = .4; d <= 3; d += .2) {
+        const px = tgt[0] - fw[0] * d + rt[0] * .5 * d / 3, py = tgt[1] - fw[1] * d + .3, pz = tgt[2] - fw[2] * d + rt[2] * .5 * d / 3;
+        if (hAt(px, pz) > py - .15) { dist = Math.max(.4, d - .2); break; }
+      }
+      const cp = [tgt[0] - fw[0] * dist + rt[0] * .5 * dist / 3, tgt[1] - fw[1] * dist + .3, tgt[2] - fw[2] * dist + rt[2] * .5 * dist / 3];
+      camera.position.set(...cp);
+      camera.lookAt(cp[0] + fw[0], cp[1] + fw[1], cp[2] + fw[2]);
+    } else {
+      // やられ中: 上から全体を見る
+      camera.position.set(MW / 2 + Math.sin(now * .2) * 8, 26, MD / 2 + (myTeam ? 14 : -14));
+      camera.lookAt(MW / 2, 0, MD / 2);
+    }
+    renderer.render(scene, camera);
+    hud(app, s, dt, W, H, now, mine);
+  }
+  function toScreen(p, W, H) {
+    const v = new THREE.Vector3(p[0], p[1], p[2]).project(G.camera);
+    return v.z > 1 ? null : [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H];
+  }
+  let mini = null, miniT = 0;
+  function hud(app, s, dt, W, H, now, mine) {
+    const me = app.me, myTeam = mine ? mine.tm : 0;
+    // 名前(味方はいつでも、敵は潜っていないときだけ)
+    for (const p of s.pl) {
+      if (p.id === app.myId || p.dd || (p.sq && p.tm !== myTeam)) continue;
+      const pos = app.rp[p.id] || p, sc = toScreen([pos.x, pos.y + (p.sf ? .7 : 1.8), pos.z], W, H);
+      if (!sc) continue;
+      if (p.tm !== myTeam && !los({ x: me ? me.x : pos.x, y: me ? me.y : pos.y, z: me ? me.z : pos.z }, pos)) continue;
+      label(p.n, sc[0], sc[1], 11 * dpr, TEAMS[p.tm].color, '#000c');
+    }
+    // 照準・インク・ダメージ
+    if (mine && !mine.dd) {
+      const cx = W / 2, cy = H / 2;
+      ctx.strokeStyle = '#ffffffdd'; ctx.lineWidth = 2 * dpr;
+      ctx.beginPath(); ctx.arc(cx, cy, 11 * dpr, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 2 * dpr, 0, 7); ctx.fill();
+      if (app.hitT > 0) {
+        app.hitT -= dt; ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 3 * dpr;
+        for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.beginPath(); ctx.moveTo(cx + a * 8 * dpr, cy + b * 8 * dpr); ctx.lineTo(cx + a * 16 * dpr, cy + b * 16 * dpr); ctx.stroke(); }
+      }
+      // インクタンク
+      const ix = cx + 34 * dpr, ih = 46 * dpr;
+      ctx.fillStyle = '#000a'; rrect(ix, cy - ih / 2, 9 * dpr, ih, 4 * dpr); ctx.fill();
+      ctx.fillStyle = mine.ink < 20 && Math.sin(now * 12) > 0 ? '#ff4040' : TEAMS[myTeam].color;
+      ctx.fillRect(ix + 1.5 * dpr, cy + ih / 2 - ih * mine.ink / 100, 6 * dpr, ih * mine.ink / 100);
+      if (mine.ink < 15) label('インク切れ!自分の色で イカ になって回復', cx, cy + 50 * dpr, 13 * dpr, '#fff', '#000');
+      if (mine.hp > 0) { const g = ctx.createRadialGradient(cx, cy, Math.min(W, H) * .3, cx, cy, Math.max(W, H) * .7); g.addColorStop(0, 'rgba(255,0,0,0)'); g.addColorStop(1, `rgba(255,0,0,${mine.hp / 140})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+    }
+    if (mine && mine.dd) label(`やられた! 復活まで ${Math.ceil(mine.rt)}`, W / 2, H / 2, Math.min(W, H) * .07, '#fff', '#000');
+    // 上部: 時間と塗り
+    const c = [0, 0]; if (app.paint) for (const v of app.paint) if (v >= 0) c[v]++;
+    const tot = c[0] + c[1], bw = Math.min(W * .45, 320 * dpr), bx = W / 2 - bw / 2, by = 36 * dpr;
+    ctx.fillStyle = '#0008'; rrect(bx, by, bw, 10 * dpr, 5 * dpr); ctx.fill();
+    if (tot) { ctx.fillStyle = TEAMS[0].color; ctx.fillRect(bx, by, bw * c[0] / tot, 10 * dpr); ctx.fillStyle = TEAMS[1].color; ctx.fillRect(bx + bw - bw * c[1] / tot, by, bw * c[1] / tot, 10 * dpr); }
+    const tm = Math.max(0, Math.ceil(s.tm));
+    label(`${Math.floor(tm / 60)}:${String(tm % 60).padStart(2, '0')}`, W / 2, 18 * dpr, 22 * dpr, tm <= 30 && Math.sin(now * 8) > 0 ? '#ff5252' : '#fff', '#000');
+    // ミニマップ(左上)
+    miniT -= dt;
+    if (!mini) { mini = document.createElement('canvas'); mini.width = PW; mini.height = PD; miniT = 0; }
+    if (miniT <= 0 && app.paint) {
+      miniT = .3;
+      const mx = mini.getContext('2d'), img = mx.createImageData(PW, PD);
+      for (let i = 0; i < PW * PD; i++) {
+        const v = app.paint[i], col = !PAINTABLE[i] ? [60, 58, 80] : v >= 0 ? TEAMS[v].rgb : [200, 196, 216];
+        // 自チームが下に来るよう、ブルーは上下左右反転
+        const px = i % PW, pz = i / PW | 0, o = myTeam ? ((PD - 1 - pz) * PW + (PW - 1 - px)) : i;
+        img.data[o * 4] = col[0]; img.data[o * 4 + 1] = col[1]; img.data[o * 4 + 2] = col[2]; img.data[o * 4 + 3] = 230;
+      }
+      mx.putImageData(img, 0, 0);
+    }
+    const mw = 64 * dpr, mh = mw * PD / PW, mx0 = 8 * dpr, my0 = 8 * dpr;
+    ctx.save(); ctx.translate(mx0, my0 + mh); ctx.scale(1, -1); ctx.imageSmoothingEnabled = false; ctx.drawImage(mini, 0, 0, mw, mh); ctx.restore();
+    for (const p of s.pl) {
+      if (p.dd || p.tm !== myTeam) continue;
+      const pos = p.id === app.myId && me ? me : (app.rp[p.id] || p);
+      let u = pos.x / MW, v = pos.z / MD; if (myTeam) { u = 1 - u; v = 1 - v; }
+      ctx.fillStyle = p.id === app.myId ? '#fff' : TEAMS[p.tm].color; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(mx0 + u * mw, my0 + mh - v * mh, (p.id === app.myId ? 3.5 : 2.5) * dpr, 0, 7); ctx.fill(); ctx.stroke();
+    }
+    // キルログ
+    app.feed = (app.feed || []).filter(f => (f.t -= dt) > 0);
+    app.feed.forEach((f, k) => label(f.txt, W - 120 * dpr, (64 + k * 18) * dpr, 12 * dpr, f.me ? '#ffcf40' : '#fff', '#000'));
     countdown(s, W, H);
   }
 })();

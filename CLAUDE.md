@@ -40,6 +40,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ルールなどの選択肢は `opts: { key: { label, choices: [[値, 表示名]], help: {値: 説明} } }` で定義する。ロビーでホストが選び(`app.modeOpts`)、`create(players, opts)` に渡る。値の取得は `modeOpts(id)`
 - 役割によって操作が変わる場合は、`clientFrame` 内で `setControls(keysHtml, [青ボタン, 赤ボタン])` を呼ぶ
 - `three: true` のモードは、背面の WebGL キャンバス `#cv3` に3Dを描き、`#cv` は HUD 用の透明レイヤーになる
+- `setControls(keys, [青, 赤, 追加1, 追加2])` の3・4番目を指定すると、スマホに追加ボタン(`#btnX1` / `#btnX2`)が出る。押下回数は `inp.x1` / `inp.x2`、押しっぱなしは `inp.x1h`
+- 視点操作は共通の `Look`: PC はモードの `pointerLock(app)` が true のとき画面クリックでポインタロック(`Look.take()` で移動量、`Look.mb` でマウスボタン)。スマホは `setTouchLook(true)` で画面右側(縦向きは上側)のドラッグ領域 `#lookzone` が出て、同じ `Look` に移動量が入る。スティックは移動専用にする
+- スナップショットを受け取るたびに処理したい差分(塗りなど)は、モードの `onSnap(app, s)` で反映する(フレームの間に複数届いても取りこぼさない)。ホスト自身も配信時に呼ばれる
 
 必要なメソッド:
 - ホスト側: `create(players)`, `addPlayer(S,p)`(途中参加でも呼ばれる), `removePlayer(S,id)`, `initData(S)`(開始時に1回だけ送る静的データ), `step(S,dt,inputs)`, `snapshot(S)`, `isOver(S)`, `result(S)`
@@ -70,6 +73,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `sumo` おしくらまんじゅう: 縮む円形の土俵でのバトルロイヤル。3ラウンド制
 - `bomb` ばくだんリレー: 接触で爆弾を渡す。導火線の残り時間はクライアントに送らず、揺れの強さ `fz` だけを送る。3ラウンド制
 - `paint` ぬりぬりバトル: 2チームで塗り合うスプラトゥーン風。塗り状態は `paint` 配列で、スナップショットでは文字列 `pa`(`.`/`0`/`1`)として送る。弾はホストで処理する
+- `splat3d` ぬりぬりバトル 3D(スプラトゥーン風 TPS): マップは 1m グリッドの高さマップ `MAP`(`HT` で高さ。上半分を作り 180° 回転でコピー)。塗りは 0.5m グリッド(`PR`)で、スナップショットには差分 `pd`([index, team, ...])と、90ティックごとに全体 `pf` を載せ、クライアントは `onSnap` で `app.paint` に反映、`DataTexture` で地面に描く
+  - 移動はクライアント権威(`moveBody`: 重力・段差 `STEP`・壁)。弾(重力つき)・ボム・塗り・ダメージ・キルはホスト。イカ(`sf`)で自分の色の上なら潜伏(`sq`: 高速・インク回復・敵から見えない)
+  - 操作: PC は WASD + マウス(左クリック撃つ・右クリック/E ボム・Shift/K イカ・Space ジャンプ)、スマホはスティック + 視点ドラッグ + 4ボタン。CPU は `cpuThink`(見えている敵を撃つ・塗り進む・インク切れで潜る)
 - `mosquito2d` 蚊の一生 2D: ボウフラ(水たまりでエサを食べて羽化) → 成虫(寝ている人間の顔・腕・足で吸う) → 水たまりで産卵して得点。かゆいゲージが100で `warn`(たたく位置はこの時点で確定)→ 平手打ち。たたかれたら `rebirth` で次の世代へ(sp を進める)
 - `mosquito` 蚊の一生 3D(PS2「蚊」風): 人間は とうさん(ソファ)/ ばあちゃん(昼寝)/ むすめ(うつ伏せでスマホ)の3人。`HUMANS` の各人は、関節 `J`(見た目)・当たり判定の箱 `col`・吸える場所 `spots`・ツボ `relax`・見た目 `look`・敏感さ `sens` を持つ。座標はメートル単位で (x, 高さ y, z)。ホスト側は three.js に依存しない純粋な計算(`buildWorld` で吸える場所と当たり判定を作る)
   - 見た目は `makeHuman` が関節の間をカプセルでつないで作る(顔のパーツと髪型は `makeHead`)。腕(前腕)とむすめのすねは、毎フレーム `setLimb` で付け直して動かす。three.js のオブジェクトは読み込み後にしか作れないので、モジュールの最上位では生成しないこと
